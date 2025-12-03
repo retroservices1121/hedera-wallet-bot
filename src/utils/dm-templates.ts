@@ -1,6 +1,19 @@
+// ============================================
+// src/utils/dm-templates.ts
+// ALL DM MESSAGE TEMPLATES
+// ============================================
+
 export const dmTemplates = {
-  // Wallet credentials (DM #1)
-  walletCredentials: (username: string, wallet: any, password: string, encryptedKey: string, count: number) => `🎉 Welcome to Spredd Markets, @${username}!
+  // ============================================
+  // DM #1: Wallet Credentials (Immediate)
+  // ============================================
+  walletCredentials: (
+    username: string,
+    wallet: any,
+    password: string,
+    encryptedKey: string,
+    count: number
+  ) => `🎉 Welcome to Spredd Markets, @${username}!
 
 Your Hedera wallet has been created successfully!
 
@@ -9,10 +22,10 @@ Your Hedera wallet has been created successfully!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Account Alias (use this to receive):
-${wallet.accountAlias}
+${wallet.account_alias}
 
 Public Key:
-${wallet.publicKey}
+${wallet.public_key}
 
 🔐 ENCRYPTED PRIVATE KEY:
 ${encryptedKey}
@@ -48,7 +61,9 @@ Early users get BONUS rewards! 🎁
 
 Questions? Reply anytime! 🚀`,
 
-  // Setup guide (DM #2)
+  // ============================================
+  // DM #2: Setup Guide (5 minutes later)
+  // ============================================
   setupGuide: (username: string) => `👋 Hey @${username}!
 
 Now that you have your wallet, here's your complete setup guide:
@@ -86,9 +101,9 @@ In HashPack:
 🔥 METHOD A: Buy on Exchange
 
 Best options:
-- Binance: binance.com
-- Crypto.com: crypto.com
-- Gate.io: gate.io
+• Binance: binance.com
+• Crypto.com: crypto.com
+• Gate.io: gate.io
 
 How to withdraw:
 1. Buy USDC
@@ -133,7 +148,9 @@ Discord: discord.gg/spreddmarkets
 
 Need help? Reply here! 💪`,
 
-  // Pre-launch reminder
+  // ============================================
+  // DM #3: Pre-Launch Reminder (7 days before)
+  // ============================================
   preLaunchReminder: (username: string, launchDate: string) => `🚨 LAUNCH ALERT: @${username}
 
 Spredd Markets launches in 7 DAYS! 🚀
@@ -153,17 +170,43 @@ Are you ready? Check these off:
 Reply "help" if you need guidance!
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔑 QUICK SETUP (if not done)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Download HashPack: hashpack.app
+2. Import with your private key
+3. Get USDC from exchange or DEX
+
+Need your key? It's in our first DM!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🎁 EARLY USER BONUS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 First 500 users with 10+ USDC:
 → 2x AIRDROP at launch! 💰
 
+Make sure you're ready!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📅 SAVE THE DATE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Set your reminder! ⏰`,
+${launchDate}
 
-  // Launch day
+What happens:
+✨ Platform goes live
+✨ USDC airdrops sent
+✨ Trading begins
+✨ Competitions start
+
+Set your reminder! ⏰
+
+Questions? Reply here! 👇`,
+
+  // ============================================
+  // DM #4: Launch Day Announcement
+  // ============================================
   launchDay: (username: string, amount: number, accountId: string) => `🎉 IT'S HERE! @${username}
 
 Spredd Markets is NOW LIVE! 🚀
@@ -174,32 +217,238 @@ Spredd Markets is NOW LIVE! 🚀
 
 We just sent you: ${amount} USDC! 🎁
 
-Your account is ACTIVATED! ✅
+Your account is now ACTIVATED! ✅
 Account ID: ${accountId}
 
-Check HashPack now!
+Check your HashPack wallet!
+(Refresh if you don't see it immediately)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 START TRADING
+🎯 START TRADING NOW
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1. Visit: spreddmarkets.io
-2. Connect HashPack
-3. Start predicting! 📈
+2. Click "Connect Wallet"
+3. Select "HashPack"
+4. Approve connection in wallet
+5. Start predicting! 📈
 
-Let's go! 🔥`,
+Takes 30 seconds!
 
-  // Help menu
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏆 LAUNCH WEEK COMPETITIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Total Prize Pool: $2,000 USDC
+
+🥇 Top Trader: $500
+🥈 Most Accurate: $250
+🥉 Highest Volume: $100
+
+Plus 10x $50 random draws!
+
+Leaderboard: spreddmarkets.io/leaderboard
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📱 QUICK TIPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Start with small bets to learn
+• Check market analytics first
+• Join Discord for alpha
+• Invite friends for bonuses
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Let's go! May the best predictor win! 🔥`,
+
+  // ============================================
+  // DM #5: Help Menu (Interactive)
+  // ============================================
   helpMenu: (username: string) => `👋 Hey @${username}! How can we help?
 
 Reply with a number:
 
-1️⃣ Setup - HashPack guide
+1️⃣ Setup - How to set up HashPack
 2️⃣ USDC - How to get USDC
 3️⃣ Security - Security tips
-4️⃣ Lost Key - I lost my key
-5️⃣ Trading - How to trade
-6️⃣ Human - Talk to support
+4️⃣ Lost Key - I lost my private key
+5️⃣ Trading - How to start trading
+6️⃣ Wallet Issues - Troubleshooting
+7️⃣ Fees - Understanding fees
+8️⃣ Human - Talk to support team
 
 Or visit: spreddmarkets.io/help`,
+
+  // ============================================
+  // Additional Interactive Responses
+  // ============================================
+  
+  setupHelp: (username: string) => `📱 HASHPACK SETUP GUIDE
+
+Hey @${username}! Here's how to set up:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1: DOWNLOAD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🌐 Browser Extension:
+chrome.google.com/webstore
+→ Search "HashPack"
+
+📱 Mobile App:
+iOS: App Store → "HashPack Wallet"
+Android: Play Store → "HashPack"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2: IMPORT (Not Create!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Open HashPack
+2. Click "Import Existing Wallet"
+3. Select "Import by Private Key"
+4. Paste your private key
+5. Set strong password
+6. Done! ✅
+
+⚠️ Don't click "Create New Wallet"
+
+Need your key? It's in our first DM!
+Lost it? Reply "lost key"
+
+Video tutorial: youtube.com/@spreddmarkets
+Still stuck? Reply "human" 💬`,
+
+  usdcHelp: (username: string) => `💰 HOW TO GET USDC
+
+Hey @${username}! Here are your options:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+METHOD 1: EXCHANGE (Easiest)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Best exchanges:
+• Binance (binance.com)
+• Crypto.com (crypto.com)
+• Gate.io (gate.io)
+
+Steps:
+1. Create account
+2. Buy USDC (credit card/bank)
+3. Go to "Withdraw"
+4. Select "USDC"
+5. ⚠️ Choose "HEDERA" network
+6. Paste your Account Alias
+7. Confirm!
+
+Arrives in 3-5 seconds! ⚡
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+METHOD 2: DEX SWAP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Already have other crypto?
+
+1. Visit saucerswap.finance
+2. Connect HashPack
+3. Swap HBAR → USDC
+4. Fee: ~$0.001
+
+Super cheap and fast! 🚀
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ CRITICAL WARNING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When withdrawing from exchanges:
+
+✅ SELECT: "Hedera" or "HBAR"
+❌ NEVER: "Ethereum" or "BSC"
+
+Wrong network = LOST FUNDS!
+
+More questions? Reply here! 💬`,
+
+  lostKey: (username: string) => `😔 LOST PRIVATE KEY
+
+Hey @${username}, we understand this is frustrating.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ IMPORTANT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Private keys CANNOT be recovered.
+This is a core principle of crypto security.
+
+We cannot access your wallet without it.
+No one can - that's by design! 🔐
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ CHECK THESE PLACES FIRST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+□ Password manager (1Password, Bitwarden)
+□ Email (search "hedera wallet")
+□ Screenshots folder
+□ Cloud notes (Apple Notes, Google Keep)
+□ Browser history (Twitter DMs)
+□ Written notes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 IF YOU CAN'T FIND IT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Option 1: Create New Wallet
+Reply "new wallet" and we'll create one
+
+Option 2: Wait for Launch
+If you haven't received USDC yet:
+→ Your account isn't active
+→ No funds to lose
+→ Just get a new wallet!
+
+If you DID receive USDC:
+→ Contact support team
+→ Reply "human"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🛡️ PREVENT THIS NEXT TIME
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Save in password manager
+✅ Write on paper → store in safe
+✅ Multiple backups
+✅ Test recovery before adding funds
+
+We're here to help! Reply with what you need 💙`,
+
+  humanSupport: (username: string) => `🙋 HUMAN SUPPORT
+
+Hey @${username}! We're connecting you with our team.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏰ RESPONSE TIME
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Business Hours: Within 1 hour
+After Hours: Within 4 hours
+Weekends: Within 8 hours
+
+A real person will reply to this DM! 💬
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 WHILE YOU WAIT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Immediate help:
+• Discord: discord.gg/spreddmarkets
+• Help Center: spreddmarkets.io/help
+• Twitter: @SpreddMarkets
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Your message has been flagged for our team.
+We'll respond ASAP! 🏃‍♂️`,
 };
+
+export default dmTemplates;
