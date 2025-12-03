@@ -1,0 +1,40 @@
+{
+  "name": "hedera-wallet-bot",
+  "version": "1.0.0",
+  "description": "Hedera wallet creation bot for Twitter using Virtuals GAME framework",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "setup-db": "ts-node scripts/setup-db.ts",
+    "test-connection": "ts-node scripts/test-connection.ts"
+  },
+  "keywords": ["hedera", "wallet", "twitter", "bot", "crypto"],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@hashgraph/sdk": "^2.40.0",
+    "@virtuals-protocol/game": "^0.1.5",
+    "@virtuals-protocol/game-twitter-plugin": "^0.1.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "limiter": "^2.1.0",
+    "node-cron": "^3.0.3",
+    "pg": "^8.11.3",
+    "pino": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.30",
+    "@types/node-cron": "^3.0.11",
+    "@types/pg": "^8.11.2",
+    "pino-pretty": "^10.3.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
