@@ -4,7 +4,7 @@
 // ============================================
 
 import { Pool } from "pg";
-import { Client, AccountBalanceQuery, Hbar } from "@hashgraph/sdk";
+import { Client, AccountBalanceQuery } from "@hashgraph/sdk";
 import { logger } from "../utils/logger";
 
 export class WalletTrackingService {
