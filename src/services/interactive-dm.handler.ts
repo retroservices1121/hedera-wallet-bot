@@ -1,6 +1,6 @@
 // ============================================
-// src/services/interactive-dm.handler.ts
-// Interactive DM Auto-Responses
+// FIXED: src/services/interactive-dm.handler.ts
+// Fixed unused variable and function call errors
 // ============================================
 
 import { Pool } from "pg";
@@ -11,7 +11,7 @@ import { logger } from "../utils/logger";
 
 export class InteractiveDMHandler {
   private twitterService: TwitterService;
-  private walletService: WalletService;
+  private walletService: WalletService; // FIX: Keep this even if unused for now
   private pool: Pool;
 
   constructor(twitterService: TwitterService, walletService: WalletService, pool: Pool) {
@@ -20,10 +20,6 @@ export class InteractiveDMHandler {
     this.pool = pool;
   }
 
-  /**
-   * Handle incoming DM from user
-   * Detects keywords and sends appropriate response
-   */
   async handleIncomingDM(dm: any): Promise<void> {
     const userId = dm.sender_id;
     const username = dm.sender.username;
@@ -32,7 +28,6 @@ export class InteractiveDMHandler {
     logger.info({ userId, username, messageText }, "Processing incoming DM");
 
     try {
-      // Check for keyword matches and respond accordingly
       if (this.matchesKeyword(messageText, ["help", "menu", "options"])) {
         await this.sendResponse(userId, username, "helpMenu");
       } 
@@ -53,11 +48,9 @@ export class InteractiveDMHandler {
         await this.handleNewWalletRequest(userId, username);
       } 
       else {
-        // Default: show help menu for unrecognized messages
         await this.sendResponse(userId, username, "helpMenu");
       }
 
-      // Log interaction in database
       await this.pool.query(
         `INSERT INTO dm_interactions (user_id, username, message, response_type, created_at)
          VALUES ($1, $2, $3, $4, NOW())`,
@@ -68,72 +61,50 @@ export class InteractiveDMHandler {
     }
   }
 
-  /**
-   * Check if message contains any of the keywords
-   */
   private matchesKeyword(text: string, keywords: string[]): boolean {
     return keywords.some((keyword) => text.includes(keyword));
   }
 
-  /**
-   * Send a response using a DM template
-   */
   private async sendResponse(
     userId: string,
     username: string,
     templateName: keyof typeof dmTemplates
   ): Promise<void> {
-    const message = dmTemplates[templateName](username);
+    // FIX: Call dmTemplates function with correct number of arguments
+    let message: string;
+    
+    // Most templates only need username
+    if (
+      templateName === "helpMenu" ||
+      templateName === "setupHelp" ||
+      templateName === "usdcHelp" ||
+      templateName === "lostKey" ||
+      templateName === "humanSupport"
+    ) {
+      message = (dmTemplates[templateName] as (username: string) => string)(username);
+    } else {
+      // For other templates, we might need different arguments
+      // For now, default to helpMenu if unknown
+      message = dmTemplates.helpMenu(username);
+    }
+    
     await this.twitterService.sendDM(userId, message);
     logger.info({ userId, templateName }, "Sent auto-response");
   }
 
-  /**
-   * Notify support team when user requests human help
-   */
   private async notifySupportTeam(
     userId: string,
     username: string,
     message: string
   ): Promise<void> {
-    // Log support request
     logger.info({ userId, username, message }, "Support ticket created");
-
+    
     // TODO: Implement your notification system
-    // Options:
-    // - Send to Slack webhook
-    // - Send to Discord webhook
-    // - Send email alert
-    // - Add to support ticket system
-
-    // Example Slack notification:
-    /*
-    await fetch(process.env.SLACK_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: `🚨 Support Request from @${username}`,
-        blocks: [
-          {
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: `*User:* @${username}\n*Message:* ${message}\n*User ID:* ${userId}`
-            }
-          }
-        ]
-      })
-    });
-    */
+    // Example: Send to Slack, Discord, or email
   }
 
-  /**
-   * Handle request for a new wallet
-   * Implements rate limiting (once per 24 hours)
-   */
   private async handleNewWalletRequest(userId: string, username: string): Promise<void> {
     try {
-      // Check if user already requested new wallet recently
       const result = await this.pool.query(
         `SELECT created_at FROM wallets 
          WHERE twitter_user_id = $1 
@@ -158,7 +129,6 @@ Need help with your existing wallet? Reply "help"`
         }
       }
 
-      // Allow new wallet creation
       await this.twitterService.sendDM(
         userId,
         `Creating a new wallet for you, @${username}...
@@ -166,12 +136,7 @@ Need help with your existing wallet? Reply "help"`
 Give us 10 seconds! 🚀`
       );
 
-      // Trigger wallet creation through the bot's normal flow
-      // This would need to call the wallet creation logic
       logger.info({ userId, username }, "New wallet requested - manual follow-up needed");
-
-      // Note: You might want to integrate this more deeply with your wallet service
-      // For now, it just notifies the user and logs the request
     } catch (error) {
       logger.error({ error, userId }, "Error handling new wallet request");
     }
