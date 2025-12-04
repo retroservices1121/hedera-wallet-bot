@@ -1,6 +1,6 @@
 # 🎯 Hedera Wallet Bot - Spredd Markets
 
-Automated Hedera wallet creation bot for Twitter using Virtuals GAME framework.
+Automated Hedera wallet creation bot.
 
 ## Features
 
