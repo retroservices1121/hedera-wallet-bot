@@ -5,18 +5,15 @@
 
 import { Pool } from "pg";
 import { TwitterService } from "./twitter.service";
-import { WalletService } from "./wallet.service";
 import { dmTemplates } from "../utils/dm-templates";
 import { logger } from "../utils/logger";
 
 export class InteractiveDMHandler {
   private twitterService: TwitterService;
-  private walletService: WalletService; // FIX: Keep this even if unused for now
   private pool: Pool;
 
-  constructor(twitterService: TwitterService, walletService: WalletService, pool: Pool) {
+  constructor(twitterService: TwitterService, pool: Pool) {
     this.twitterService = twitterService;
-    this.walletService = walletService;
     this.pool = pool;
   }
 
