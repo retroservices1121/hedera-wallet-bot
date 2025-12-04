@@ -1,102 +1,121 @@
-```typescript
-// src/services/wallet-tracking.service.ts
+// ============================================
+// FIXED: src/services/wallet-tracking.service.ts
+// Clean version without syntax errors
+// ============================================
 
-import { Client, AccountBalanceQuery } from "@hashgraph/sdk";
 import { Pool } from "pg";
+import { Client, AccountBalanceQuery, Hbar } from "@hashgraph/sdk";
 import { logger } from "../utils/logger";
 
 export class WalletTrackingService {
-  constructor(
-    private db: Pool,
-    private client: Client
-  ) {}
+  private pool: Pool;
+  private client: Client;
 
-  async updateWalletBalances(): Promise {
+  constructor(pool: Pool, hederaClient: Client) {
+    this.pool = pool;
+    this.client = hederaClient;
+  }
+
+  /**
+   * Update balance for all unfunded wallets
+   * Returns number of newly funded wallets
+   */
+  async updateWalletBalances(): Promise<number> {
     try {
-      logger.info("Starting wallet balance check...");
-      
-      const unfundedWallets = await this.db.query(`
-        SELECT account_id, account_alias, twitter_username 
-        FROM wallets 
-        WHERE is_funded = FALSE AND account_id IS NOT NULL
-        ORDER BY created_at DESC
-      `);
+      const result = await this.pool.query(
+        `SELECT id, account_id, twitter_username 
+         FROM wallets 
+         WHERE account_id IS NOT NULL 
+         AND is_funded = FALSE`
+      );
 
-      let fundedCount = 0;
+      let newlyFundedCount = 0;
 
-      for (const wallet of unfundedWallets.rows) {
+      for (const wallet of result.rows) {
         try {
-          const balance = await this.getWalletBalance(wallet.account_id);
+          const balance = await this.checkBalance(wallet.account_id);
           
+          await this.pool.query(
+            `UPDATE wallets 
+             SET current_balance = $1, 
+                 last_balance_check = NOW(),
+                 is_funded = $2
+             WHERE id = $3`,
+            [balance, balance > 0, wallet.id]
+          );
+
           if (balance > 0) {
-            await this.db.query(`
-              UPDATE wallets 
-              SET is_funded = TRUE, 
-                  current_balance = $1, 
-                  last_balance_check = NOW()
-              WHERE account_id = $2
-            `, [balance, wallet.account_id]);
-            
-            logger.info(`✅ Wallet ${wallet.account_id} (@${wallet.twitter_username}) funded with ${balance} HBAR`);
-            fundedCount++;
+            newlyFundedCount++;
+            logger.info(`Wallet ${wallet.account_id} (@${wallet.twitter_username}) funded with ${balance} HBAR`);
           }
         } catch (error) {
-          logger.error(`Error checking wallet ${wallet.account_id}:`, error);
+          logger.error(`Failed to check balance for ${wallet.account_id}:`, error);
         }
       }
 
-      logger.info(`Balance check complete: ${fundedCount} newly funded wallets`);
-      return fundedCount;
+      return newlyFundedCount;
     } catch (error) {
-      logger.error("Error in updateWalletBalances:", error);
+      logger.error("Failed to update wallet balances:", error);
       throw error;
     }
   }
 
-  async getWalletBalance(accountId: string): Promise {
+  /**
+   * Check balance of a Hedera account
+   */
+  async checkBalance(accountId: string): Promise<number> {
     try {
       const balance = await new AccountBalanceQuery()
         .setAccountId(accountId)
         .execute(this.client);
-      
+
       return balance.hbars.toBigNumber().toNumber();
     } catch (error) {
-      logger.error(`Error getting balance for ${accountId}:`, error);
+      logger.error(`Failed to check balance for ${accountId}:`, error);
       return 0;
     }
   }
 
-  async getWalletStats() {
+  /**
+   * Get funded wallets ready for airdrop
+   */
+  async getFundedWalletsForAirdrop(minBalance: number = 1): Promise<any[]> {
     try {
-      const result = await this.db.query(`SELECT * FROM wallet_stats`);
-      return result.rows[0];
+      const result = await this.pool.query(
+        `SELECT id, account_id, twitter_user_id, twitter_username, current_balance
+         FROM wallets 
+         WHERE is_funded = TRUE 
+         AND airdrop_sent = FALSE
+         AND current_balance >= $1`,
+        [minBalance]
+      );
+
+      return result.rows;
     } catch (error) {
-      logger.error("Error getting wallet stats:", error);
+      logger.error("Failed to get funded wallets:", error);
       throw error;
     }
   }
 
-  async getFundedWalletsForAirdrop(minimumBalance = 0): Promise {
+  /**
+   * Get wallet statistics
+   */
+  async getWalletStats(): Promise<any> {
     try {
-      const result = await this.db.query(`
+      const result = await this.pool.query(`
         SELECT 
-          account_id, 
-          twitter_username, 
-          twitter_user_id,
-          current_balance,
-          created_at
-        FROM wallets 
-        WHERE is_funded = TRUE 
-          AND airdrop_sent = FALSE
-          AND current_balance >= $1
-        ORDER BY created_at ASC
-      `, [minimumBalance]);
-      
-      return result.rows;
+          COUNT(*) as total_wallets,
+          COUNT(*) FILTER (WHERE is_funded = TRUE) as funded_wallets,
+          COUNT(*) FILTER (WHERE is_funded = FALSE) as unfunded_wallets,
+          COUNT(*) FILTER (WHERE airdrop_sent = TRUE) as airdropped_wallets,
+          COALESCE(SUM(current_balance), 0) as total_balance_hbar
+        FROM wallets
+      `);
+
+      return result.rows[0];
     } catch (error) {
-      logger.error("Error getting funded wallets:", error);
+      logger.error("Failed to get wallet stats:", error);
       throw error;
     }
   }
 }
-```
