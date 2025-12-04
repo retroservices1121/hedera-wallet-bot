@@ -1,231 +1,267 @@
 // ============================================
-// FIXED: src/services/twitter.service.ts
-// Fixed imports and method names for Virtuals GAME
+// ✅ SIMPLIFIED: src/services/twitter.service.ts
+// Using game-twitter-node directly (no GAME Agent complexity)
 // ============================================
 
-import { GameAgent } from "@virtuals-protocol/game";
-// FIX: Change these imports - they're default exports, not named exports
-import TwitterPlugin from "@virtuals-protocol/game-twitter-plugin";
-import GameTwitterClient from "@virtuals-protocol/game-twitter-plugin";
-
+import { TwitterApi } from "@virtuals-protocol/game-twitter-node";
 import { config } from "../config";
 import { logger } from "../utils/logger";
 import { WalletService } from "./wallet.service";
-import { rateLimiter } from "./rate-limiter.service";
 import { dmTemplates } from "../utils/dm-templates";
 
 export class TwitterService {
-  private agent!: GameAgent;
+  private twitter!: TwitterApi;
   private walletService: WalletService;
+  private isMonitoring: boolean = false;
 
   constructor() {
     this.walletService = new WalletService();
   }
 
   async initialize(): Promise<void> {
-    logger.info("Initializing Twitter service...");
+    logger.info("Initializing Twitter service with game-twitter-node...");
 
-    // FIX: Use the correct instantiation
-    const gameTwitterClient = new GameTwitterClient({
-      accessToken: config.gameTwitterToken,
+    // Initialize Twitter client with GAME token (gets enterprise rate limits!)
+    this.twitter = new TwitterApi({
+      gameTwitterAccessToken: config.gameTwitterToken,
     });
 
-    const twitterPlugin = new TwitterPlugin({
-      twitterClient: gameTwitterClient,
-    });
-
-    this.agent = new GameAgent(config.gameApiKey, {
-      name: "Spredd Markets Wallet Bot",
-      goal: `Create Hedera wallets for Twitter users interested in Spredd Markets.
-      Respond to mentions containing keywords like "wallet", "create wallet", "sign up".`,
-      description: "Official Spredd Markets wallet creation bot.",
-      workers: [twitterPlugin.getWorker()],
-    });
-
-    logger.info("Twitter service initialized");
+    logger.info("✅ Twitter client initialized successfully");
   }
 
   async start(): Promise<void> {
-    // FIX: The Virtuals GAME SDK might not have setReactionModule
-    // We need to use a different approach
-    
-    // Start the agent
-    await this.agent.run();
-    
-    logger.info("Twitter bot started");
-    
-    // Set up polling for mentions manually
-    this.pollForMentions();
+    logger.info("Starting Twitter mention monitoring...");
+
+    this.isMonitoring = true;
+
+    // Start monitoring loop
+    this.monitorMentions();
   }
 
-  private async pollForMentions(): Promise<void> {
-    // Poll every 45 seconds
-    setInterval(async () => {
+  /**
+   * Monitor mentions in a loop
+   */
+  private async monitorMentions(): Promise<void> {
+    let lastCheckedId: string | undefined;
+
+    while (this.isMonitoring) {
       try {
-        // Note: You'll need to implement this using the actual Virtuals GAME API
-        // Check their documentation for the correct method
-        logger.debug("Polling for mentions...");
-      } catch (error) {
-        logger.error({ error }, "Error polling for mentions");
-      }
-    }, 45000);
-  }
-
-  private async handleMention(tweet: any): Promise<void> {
-    const triggerWords = ["wallet", "create wallet", "sign up", "hedera"];
-    const tweetText = tweet.text.toLowerCase();
-
-    if (!triggerWords.some((word) => tweetText.includes(word))) {
-      return;
-    }
-
-    const userId = tweet.author_id;
-    const username = tweet.author.username;
-    const tweetId = tweet.id;
-
-    logger.info({ userId, username, tweetId }, "Processing wallet request");
-
-    try {
-      const result = await this.createWalletForUser(userId, username);
-
-      if (result.success && result.dmMessage1) {
-        // Send DM #1 immediately
-        await this.sendDM(userId, result.dmMessage1);
-        await this.walletService.updateDMSentTime(userId);
-
-        // Schedule DM #2 for 5 minutes later
-        setTimeout(async () => {
-          try {
-            await this.sendDM(userId, result.dmMessage2!);
-            logger.info({ userId, username }, "Sent follow-up DM");
-          } catch (error) {
-            logger.error({ error, userId }, "Failed to send follow-up DM");
+        // Get mentions (using Twitter API v2)
+        const mentions = await this.twitter.v2.userMentionTimeline(
+          await this.getOwnUserId(),
+          {
+            max_results: 10,
+            since_id: lastCheckedId,
+            expansions: ['author_id'],
+            'tweet.fields': ['created_at', 'conversation_id'],
+            'user.fields': ['username'],
           }
-        }, 5 * 60 * 1000);
-      }
+        );
 
-      await this.replyToTweet(tweetId, result.publicReply);
-    } catch (error) {
-      logger.error({ error, userId }, "Error handling mention");
+        // Process each mention
+        for (const tweet of mentions.data?.data || []) {
+          // Update last checked ID
+          if (!lastCheckedId || tweet.id > lastCheckedId) {
+            lastCheckedId = tweet.id;
+          }
+
+          // Get author info
+          const author = mentions.includes?.users?.find(
+            (u: any) => u.id === tweet.author_id
+          );
+
+          if (!author) continue;
+
+          // Check if tweet contains trigger words
+          const triggerWords = ['wallet', 'create wallet', 'sign up', 'hedera'];
+          const tweetText = tweet.text.toLowerCase();
+
+          if (!triggerWords.some(word => tweetText.includes(word))) {
+            continue;
+          }
+
+          logger.info(
+            { userId: author.id, username: author.username, tweetId: tweet.id },
+            "Processing wallet request"
+          );
+
+          // Handle wallet creation
+          await this.handleWalletRequest(author.id, author.username, tweet.id);
+        }
+
+        // Wait 30 seconds before checking again
+        await new Promise(resolve => setTimeout(resolve, 30000));
+      } catch (error) {
+        logger.error({ error }, "Error monitoring mentions");
+        
+        // Wait longer on error
+        await new Promise(resolve => setTimeout(resolve, 60000));
+      }
     }
   }
 
-  private async createWalletForUser(
+  /**
+   * Handle wallet creation request
+   */
+  private async handleWalletRequest(
     userId: string,
-    username: string
-  ): Promise<{ 
-    success: boolean; 
-    message: string; 
-    dmMessage1?: string; 
-    dmMessage2?: string; 
-    publicReply: string 
-  }> {
-    // Check if user already has wallet
-    if (await this.walletService.hasWallet(userId)) {
-      return {
-        success: false,
-        message: "WALLET_EXISTS",
-        publicReply: `@${username} You already have a wallet! Check your DMs for details. 🎯`,
-      };
-    }
-
-    // Check rate limits
-    const canCreate = await this.walletService.checkRateLimit(
-      userId,
-      "CREATE_WALLET",
-      config.maxWalletsPerUser
-    );
-
-    if (!canCreate) {
-      return {
-        success: false,
-        message: "RATE_LIMIT_EXCEEDED",
-        publicReply: `@${username} You've reached the wallet creation limit. Please try again tomorrow.`,
-      };
-    }
-
-    // Check daily limit
-    const todayCount = await this.walletService.getTodayWalletCount();
-    if (todayCount >= config.maxWalletsPerDay) {
-      return {
-        success: false,
-        message: "DAILY_LIMIT_REACHED",
-        publicReply: `@${username} We've reached our daily wallet limit! Please try again tomorrow. 🙏`,
-      };
-    }
-
-    // Create wallet
-    const { wallet, password } = await this.walletService.createWallet(userId, username);
-    await this.walletService.recordRateLimit(userId, "CREATE_WALLET");
-
-    const walletCount = await this.walletService.getWalletCount();
-
-    // Prepare DMs
-    const dmMessage1 = dmTemplates.walletCredentials(
-      username,
-      wallet,
-      password,
-      wallet.private_key_encrypted,
-      walletCount
-    );
-
-    const dmMessage2 = dmTemplates.setupGuide(username);
-
-    return {
-      success: true,
-      message: "WALLET_CREATED",
-      dmMessage1,
-      dmMessage2,
-      publicReply: `@${username} Your Hedera wallet is ready! 🎉 Check your DMs to receive your credentials.
-
-💡 You're user #${walletCount}! Early users get bonus rewards at launch! 🚀`,
-    };
-  }
-
-  private async handleIncomingDM(dm: any): Promise<void> {
-    const userId = dm.sender_id;
-    const username = dm.sender.username;
-    const messageText = dm.text.toLowerCase().trim();
-
-    logger.info({ userId, username, messageText }, "Processing incoming DM");
-
+    username: string,
+    tweetId: string
+  ): Promise<void> {
     try {
-      if (this.matchesKeyword(messageText, ["help", "menu", "options"])) {
-        await this.sendDM(userId, dmTemplates.helpMenu(username));
+      // Check if user already has wallet
+      if (await this.walletService.hasWallet(userId)) {
+        await this.replyToTweet(
+          tweetId,
+          `@${username} You already have a wallet! Check your DMs for details. 🎯`
+        );
+        logger.info({ userId }, "User already has wallet");
+        return;
       }
+
+      // Check rate limits
+      const canCreate = await this.walletService.checkRateLimit(
+        userId,
+        "CREATE_WALLET",
+        config.maxWalletsPerUser
+      );
+
+      if (!canCreate) {
+        await this.replyToTweet(
+          tweetId,
+          `@${username} You've reached the wallet creation limit. Please try again tomorrow.`
+        );
+        logger.warn({ userId }, "Rate limit exceeded");
+        return;
+      }
+
+      // Check daily limit
+      const todayCount = await this.walletService.getTodayWalletCount();
+      if (todayCount >= config.maxWalletsPerDay) {
+        await this.replyToTweet(
+          tweetId,
+          `@${username} We've reached our daily wallet limit! Please try again tomorrow. 🙏`
+        );
+        logger.warn({ todayCount }, "Daily limit reached");
+        return;
+      }
+
+      // Create wallet
+      logger.info({ userId, username }, "Creating wallet");
+      const { wallet, password } = await this.walletService.createWallet(userId, username);
+      await this.walletService.recordRateLimit(userId, "CREATE_WALLET");
+
+      const walletCount = await this.walletService.getWalletCount();
+
+      // Prepare DM messages
+      const dmMessage1 = dmTemplates.walletCredentials(
+        username,
+        wallet,
+        password,
+        wallet.private_key_encrypted,
+        walletCount
+      );
+
+      const dmMessage2 = dmTemplates.setupGuide(username);
+
+      // Send DM #1 immediately
+      await this.sendDM(userId, dmMessage1);
+      await this.walletService.updateDMSentTime(userId);
+
+      logger.info({ userId, username }, "Sent DM #1");
+
+      // Schedule DM #2 for 5 minutes later
+      setTimeout(async () => {
+        try {
+          await this.sendDM(userId, dmMessage2);
+          logger.info({ userId, username }, "Sent DM #2");
+        } catch (error) {
+          logger.error({ error, userId }, "Failed to send DM #2");
+        }
+      }, 5 * 60 * 1000);
+
+      // Reply publicly
+      await this.replyToTweet(
+        tweetId,
+        `@${username} Your Hedera wallet is ready! 🎉 Check your DMs to receive your credentials.
+
+💡 You're user #${walletCount}! Early users get bonus rewards at launch! 🚀`
+      );
+
+      logger.info({ userId, username, walletCount }, "✅ Wallet created successfully");
+
     } catch (error) {
-      logger.error({ error, userId }, "Error handling incoming DM");
+      logger.error({ error, userId }, "Error handling wallet request");
+      
+      // Try to send error reply
+      try {
+        await this.replyToTweet(
+          tweetId,
+          `@${username} Sorry, something went wrong! Please try again in a few minutes. 🙏`
+        );
+      } catch (replyError) {
+        logger.error({ error: replyError }, "Failed to send error reply");
+      }
     }
   }
 
-  private matchesKeyword(text: string, keywords: string[]): boolean {
-    return keywords.some((keyword) => text.includes(keyword));
-  }
-
+  /**
+   * Send a direct message
+   */
   async sendDM(recipientId: string, text: string): Promise<void> {
-    await rateLimiter.waitForTwitter();
-    
-    // FIX: Use the correct method name from Virtuals GAME SDK
-    // You'll need to check their documentation for the exact method
     try {
-      // This is a placeholder - check Virtuals GAME docs for correct method
-      await this.agent.sendDirectMessage?.(recipientId, text);
+      await this.twitter.v2.sendDmToParticipant(recipientId, { text });
+      logger.debug({ recipientId }, "DM sent successfully");
     } catch (error) {
       logger.error({ error, recipientId }, "Failed to send DM");
       throw error;
     }
   }
 
+  /**
+   * Reply to a tweet
+   */
   private async replyToTweet(tweetId: string, text: string): Promise<void> {
-    await rateLimiter.waitForTwitter();
-    
     try {
-      // This is a placeholder - check Virtuals GAME docs for correct method
-      await this.agent.replyToTweet?.(tweetId, text);
+      await this.twitter.v2.reply(text, tweetId);
+      logger.debug({ tweetId }, "Reply sent successfully");
     } catch (error) {
       logger.error({ error, tweetId }, "Failed to reply to tweet");
       throw error;
     }
+  }
+
+  /**
+   * Get own user ID (cached)
+   */
+  private ownUserId?: string;
+  private async getOwnUserId(): Promise<string> {
+    if (this.ownUserId) return this.ownUserId;
+
+    try {
+      const me = await this.twitter.v2.me();
+      this.ownUserId = me.data.id;
+      logger.info({ userId: this.ownUserId }, "Retrieved own user ID");
+      return this.ownUserId;
+    } catch (error) {
+      logger.error({ error }, "Failed to get own user ID");
+      throw error;
+    }
+  }
+
+  /**
+   * Stop monitoring
+   */
+  stop(): void {
+    this.isMonitoring = false;
+    logger.info("Twitter monitoring stopped");
+  }
+
+  /**
+   * Check if monitoring is active
+   */
+  isActive(): boolean {
+    return this.isMonitoring;
   }
 }
 
