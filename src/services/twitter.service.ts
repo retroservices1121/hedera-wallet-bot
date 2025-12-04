@@ -27,7 +27,7 @@ export class TwitterService {
 
     this.agent = new GameAgent(config.gameApiKey, {
       name: "Spredd Markets Wallet Bot",
-      goal: `Create Hedera wallets for Twitter users interested in Spredd Markets.
+      goal: `Create Hedera wallets directly from X.
       Respond to mentions containing keywords like "wallet", "create wallet", "sign up".`,
       description: "Official Spredd Markets wallet creation bot.",
       workers: [twitterPlugin.getWorker()],
