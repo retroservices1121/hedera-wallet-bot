@@ -142,9 +142,8 @@ DON'T:
 📚 RESOURCES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Full guide: spreddmarkets.io/guide
-Videos: youtube.com/@spreddmarkets
-Discord: discord.gg/spreddmarkets
+Full guide: spredd.markets/guide
+Discord: discord.gg/fPSubt3TE7
 
 Need help? Reply here! 💪`,
 
@@ -165,7 +164,7 @@ Are you ready? Check these off:
 ☐ Imported wallet to HashPack?
 ☐ Got USDC in your wallet?
 ☐ Joined our Discord?
-☐ Following @SpreddMarkets?
+☐ Following @spreddterminal?
 
 Reply "help" if you need guidance!
 
@@ -183,7 +182,7 @@ Need your key? It's in our first DM!
 🎁 EARLY USER BONUS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-First 500 users with 10+ USDC:
+First 500 users with 5 USDC:
 → 2x AIRDROP at launch! 💰
 
 Make sure you're ready!
@@ -198,7 +197,7 @@ What happens:
 ✨ Platform goes live
 ✨ USDC airdrops sent
 ✨ Trading begins
-✨ Competitions start
+
 
 Set your reminder! ⏰
 
@@ -227,7 +226,7 @@ Check your HashPack wallet!
 🎯 START TRADING NOW
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. Visit: spreddmarkets.io
+1. Visit: spredd.markets
 2. Click "Connect Wallet"
 3. Select "HashPack"
 4. Approve connection in wallet
@@ -235,19 +234,6 @@ Check your HashPack wallet!
 
 Takes 30 seconds!
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏆 LAUNCH WEEK COMPETITIONS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Total Prize Pool: $2,000 USDC
-
-🥇 Top Trader: $500
-🥈 Most Accurate: $250
-🥉 Highest Volume: $100
-
-Plus 10x $50 random draws!
-
-Leaderboard: spreddmarkets.io/leaderboard
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📱 QUICK TIPS
@@ -256,7 +242,6 @@ Leaderboard: spreddmarkets.io/leaderboard
 • Start with small bets to learn
 • Check market analytics first
 • Join Discord for alpha
-• Invite friends for bonuses
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -278,7 +263,7 @@ Reply with a number:
 7️⃣ Fees - Understanding fees
 8️⃣ Human - Talk to support team
 
-Or visit: spreddmarkets.io/help`,
+Or visit: spredd.markets/help`,
 
   // ============================================
   // Additional Interactive Responses
@@ -316,7 +301,6 @@ STEP 2: IMPORT (Not Create!)
 Need your key? It's in our first DM!
 Lost it? Reply "lost key"
 
-Video tutorial: youtube.com/@spreddmarkets
 Still stuck? Reply "human" 💬`,
 
   usdcHelp: (username: string) => `💰 HOW TO GET USDC
@@ -441,9 +425,8 @@ A real person will reply to this DM! 💬
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Immediate help:
-• Discord: discord.gg/spreddmarkets
-• Help Center: spreddmarkets.io/help
-• Twitter: @SpreddMarkets
+• Discord: discord.gg/fPSubt3TE7
+• Twitter: @spreddterminal
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
