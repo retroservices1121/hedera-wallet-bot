@@ -1,6 +1,6 @@
 // ============================================
-// ✅ SIMPLIFIED: src/services/twitter.service.ts
-// Using game-twitter-node directly (no GAME Agent complexity)
+// ✅ UPDATED: src/services/twitter.service.ts
+// Added duplicate prevention and better error handling
 // ============================================
 
 import { TwitterApi } from "@virtuals-protocol/game-twitter-node";
@@ -13,6 +13,7 @@ export class TwitterService {
   private twitter!: TwitterApi;
   private walletService: WalletService;
   private isMonitoring: boolean = false;
+  private processedTweets: Set<string> = new Set(); // Track processed tweets
 
   constructor() {
     this.walletService = new WalletService();
@@ -60,6 +61,11 @@ export class TwitterService {
 
         // Process each mention
         for (const tweet of mentions.data?.data || []) {
+          // Skip if already processed
+          if (this.processedTweets.has(tweet.id)) {
+            continue;
+          }
+
           // Update last checked ID
           if (!lastCheckedId || tweet.id > lastCheckedId) {
             lastCheckedId = tweet.id;
@@ -80,13 +86,24 @@ export class TwitterService {
             continue;
           }
 
+          // Mark as processed BEFORE handling to prevent duplicate processing
+          this.processedTweets.add(tweet.id);
+
           logger.info(
             { userId: author.id, username: author.username, tweetId: tweet.id },
             "Processing wallet request"
           );
 
-          // Handle wallet creation
-          await this.handleWalletRequest(author.id, author.username, tweet.id);
+          // Handle wallet creation (don't await to process multiple mentions in parallel)
+          this.handleWalletRequest(author.id, author.username, tweet.id).catch(error => {
+            logger.error({ error, tweetId: tweet.id }, "Unhandled error in wallet request");
+          });
+        }
+
+        // Clean up old processed tweets (keep only last 1000)
+        if (this.processedTweets.size > 1000) {
+          const tweetsArray = Array.from(this.processedTweets);
+          this.processedTweets = new Set(tweetsArray.slice(-1000));
         }
 
         // Wait 30 seconds before checking again
@@ -109,17 +126,21 @@ export class TwitterService {
     tweetId: string
   ): Promise<void> {
     try {
-      // Check if user already has wallet
-      if (await this.walletService.hasWallet(userId)) {
+      // CHECK 1: Does user already have a wallet?
+      const hasWallet = await this.walletService.hasWallet(userId);
+      
+      if (hasWallet) {
         await this.replyToTweet(
           tweetId,
-          `@${username} You already have a wallet! Check your DMs for details. 🎯`
+          `@${username} You already have a wallet! Check your DMs for your credentials. 
+
+If you didn't receive them, please contact support.`
         );
-        logger.info({ userId }, "User already has wallet");
-        return;
+        logger.info({ userId, username }, "User already has wallet - skipping creation");
+        return; // EXIT - Don't create another wallet
       }
 
-      // Check rate limits
+      // CHECK 2: Rate limiting
       const canCreate = await this.walletService.checkRateLimit(
         userId,
         "CREATE_WALLET",
@@ -131,12 +152,13 @@ export class TwitterService {
           tweetId,
           `@${username} You've reached the wallet creation limit. Please try again tomorrow.`
         );
-        logger.warn({ userId }, "Rate limit exceeded");
+        logger.warn({ userId, username }, "Rate limit exceeded");
         return;
       }
 
-      // Check daily limit
+      // CHECK 3: Daily limit
       const todayCount = await this.walletService.getTodayWalletCount();
+      
       if (todayCount >= config.maxWalletsPerDay) {
         await this.replyToTweet(
           tweetId,
@@ -146,12 +168,15 @@ export class TwitterService {
         return;
       }
 
-      // Create wallet
+      // CREATE WALLET
       logger.info({ userId, username }, "Creating wallet");
+      
       const { wallet, password } = await this.walletService.createWallet(userId, username);
+      
       await this.walletService.recordRateLimit(userId, "CREATE_WALLET");
 
       const walletCount = await this.walletService.getWalletCount();
+      const walletAddress = wallet.account_id || wallet.account_alias;
 
       // Prepare DM messages
       const dmMessage1 = dmTemplates.walletCredentials(
@@ -180,28 +205,49 @@ export class TwitterService {
         }
       }, 5 * 60 * 1000);
 
-      // Reply publicly
+      // Reply publicly with success message
       await this.replyToTweet(
         tweetId,
-        `@${username} Your Hedera wallet is ready! 🎉 Check your DMs to receive your credentials.
+        `@${username} Your Hedera wallet is ready! 🎉 
+
+📍 Address: ${walletAddress}
+Check your DMs for secure access credentials.
 
 💡 You're user #${walletCount}! Early users get bonus rewards at launch! 🚀`
       );
 
-      logger.info({ userId, username, walletCount }, "✅ Wallet created successfully");
+      logger.info({ userId, username, walletCount, walletAddress }, "✅ Wallet created successfully");
 
-    } catch (error) {
-      logger.error({ error, userId }, "Error handling wallet request");
+    } catch (error: any) {
+      logger.error({ error, userId, username }, "Error handling wallet request");
+      
+      // Determine error type and send appropriate message
+      let errorMessage = `@${username} ❌ Something went wrong creating your wallet. `;
+
+      if (error.message?.includes("WALLET_ALREADY_EXISTS")) {
+        errorMessage = `@${username} You already have a wallet! Check your DMs for your credentials.`;
+      } else if (error.message?.includes("INSUFFICIENT_PAYER_BALANCE")) {
+        errorMessage = `@${username} Our system is temporarily low on funds. Please try again in a few minutes. 🙏`;
+      } else if (error.message?.includes("INVALID_SIGNATURE")) {
+        errorMessage = `@${username} System configuration error. Please contact support.`;
+      } else if (error.message?.includes("Operator account not configured")) {
+        errorMessage = `@${username} Wallet service is temporarily unavailable. Please try again later.`;
+      } else if (error.code === "23505") { // Duplicate key violation
+        errorMessage = `@${username} You already have a wallet! Check your DMs for your credentials.`;
+      } else {
+        errorMessage += "Please mention us again to retry.";
+      }
       
       // Try to send error reply
       try {
-        await this.replyToTweet(
-          tweetId,
-          `@${username} Sorry, something went wrong! Please try again in a few minutes. 🙏`
-        );
+        await this.replyToTweet(tweetId, errorMessage);
       } catch (replyError) {
-        logger.error({ error: replyError }, "Failed to send error reply");
+        logger.error({ error: replyError, userId }, "Failed to send error reply");
       }
+
+      // DO NOT retry automatically - user must mention again
+      // Remove from processed tweets so they CAN mention again if they want
+      this.processedTweets.delete(tweetId);
     }
   }
 
