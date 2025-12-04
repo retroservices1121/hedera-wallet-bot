@@ -17,7 +17,6 @@ const app = express();
 const walletService = new WalletService();
 const twitterService = new TwitterService();
 const scheduledDMService = new ScheduledDMService(twitterService, walletService, pool);
-const interactiveDMHandler = new InteractiveDMHandler(twitterService, pool);
 
 // Health check endpoint
 app.get("/health", async (_req, res) => {  // FIX: Prefix unused param with _
