@@ -11,11 +11,13 @@ import { closePool, pool } from "./database";
 import { TwitterService } from "./services/twitter.service";
 import { WalletService } from "./services/wallet.service";
 import { ScheduledDMService } from "./services/scheduled-dm.service";
+import { InteractiveDMHandler } from "./services/interactive-dm.handler";
 
 const app = express();
 const walletService = new WalletService();
 const twitterService = new TwitterService();
 const scheduledDMService = new ScheduledDMService(twitterService, walletService, pool);
+const interactiveDMHandler = new InteractiveDMHandler(twitterService, pool);
 
 // Health check endpoint
 app.get("/health", async (_req, res) => {  // FIX: Prefix unused param with _
