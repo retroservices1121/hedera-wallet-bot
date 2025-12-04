@@ -4,6 +4,7 @@
 // ============================================
 
 import express from "express";
+import cron from "node-cron";
 import { config } from "./config";
 import { logger } from "./utils/logger";
 import { runMigrations } from "./database/migrations"; // FIX: This import was failing
@@ -11,6 +12,8 @@ import { closePool, pool } from "./database";
 import { TwitterService } from "./services/twitter.service";
 import { WalletService } from "./services/wallet.service";
 import { ScheduledDMService } from "./services/scheduled-dm.service";
+import { WalletTrackingService } from "./services/wallet-tracking.service";
+import { AirdropService } from "./services/airdrop.service";
 
 const app = express();
 const walletService = new WalletService();
