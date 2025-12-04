@@ -15,7 +15,7 @@ import { config } from "../config";
 export interface HederaWallet {
   privateKey: string;
   publicKey: string;
-  accountId?: string;  // Added for on-chain accounts
+  accountId?: string;
   accountAlias: string;
   evmAddress: string;
 }
@@ -26,7 +26,7 @@ export interface WalletRecord {
   twitter_username: string;
   private_key_encrypted: string;
   public_key: string;
-  account_id?: string;  // Added for on-chain accounts
+  account_id?: string;
   account_alias: string;
   evm_address: string;
   password_hash: string;
@@ -44,7 +44,6 @@ export class WalletService {
 
   private initializeClient() {
     try {
-      // Check if operator credentials are set
       if (!config.operatorAccountId || !config.operatorPrivateKey) {
         logger.warn("⚠️ Hedera operator credentials not set - using key-only mode");
         logger.warn("Set OPERATOR_ACCOUNT_ID and OPERATOR_PRIVATE_KEY to enable on-chain account creation");
@@ -66,9 +65,6 @@ export class WalletService {
     }
   }
 
-  /**
-   * Generate wallet with on-chain account creation (requires operator)
-   */
   async generateWalletWithAccount(): Promise<HederaWallet> {
     if (!this.client || !this.client.operatorAccountId) {
       throw new Error(
@@ -79,15 +75,13 @@ export class WalletService {
     try {
       logger.info("Generating new Hedera wallet with on-chain account...");
       
-      // Generate new key pair
       const privateKey = PrivateKey.generateED25519();
       const publicKey = privateKey.publicKey;
       
-      // Create account on Hedera network
       const transaction = await new AccountCreateTransaction()
         .setKey(publicKey)
-        .setInitialBalance(new Hbar(0)) // Start with 0 HBAR
-        .setMaxTransactionFee(new Hbar(5)) // Cap the fee
+        .setInitialBalance(new Hbar(0))
+        .setMaxTransactionFee(new Hbar(5))
         .execute(this.client);
       
       const receipt = await transaction.getReceipt(this.client);
@@ -109,7 +103,6 @@ export class WalletService {
     } catch (error: any) {
       logger.error("Failed to create on-chain account:", error);
       
-      // Provide helpful error messages
       if (error.message?.includes("INSUFFICIENT_PAYER_BALANCE")) {
         throw new Error(
           "Operator account has insufficient HBAR. Fund your operator account with at least 10 HBAR."
@@ -124,10 +117,6 @@ export class WalletService {
     }
   }
 
-  /**
-   * Generate wallet keys only (no on-chain account)
-   * Use this if operator is not configured
-   */
   async generateWalletKeysOnly(): Promise<HederaWallet> {
     try {
       logger.info("Generating wallet keys (no on-chain account)...");
@@ -147,17 +136,12 @@ export class WalletService {
     }
   }
 
-  /**
-   * Main wallet generation method - tries on-chain first, falls back to keys-only
-   */
   async generateWallet(): Promise<HederaWallet> {
     try {
-      // Try on-chain account creation if operator is configured
       if (this.client && this.client.operatorAccountId) {
         logger.info("Attempting on-chain account creation...");
         return await this.generateWalletWithAccount();
       } else {
-        // Fall back to keys-only mode
         logger.warn("No operator configured - generating keys only");
         return await this.generateWalletKeysOnly();
       }
@@ -189,7 +173,6 @@ export class WalletService {
       const encryptedKey = encryptPrivateKey(wallet.privateKey, password);
       const passwordHash = hashPassword(password);
 
-      // Store in database
       const result = await pool.query(
         `INSERT INTO wallets (
           twitter_user_id, twitter_username, private_key_encrypted,
@@ -201,7 +184,7 @@ export class WalletService {
           username, 
           encryptedKey, 
           wallet.publicKey, 
-          wallet.accountId || null,  // Store account ID if created on-chain
+          wallet.accountId || null,
           wallet.accountAlias, 
           wallet.evmAddress, 
           passwordHash
@@ -284,9 +267,6 @@ export class WalletService {
     await pool.query("UPDATE wallets SET launch_dm_sent_at = NOW() WHERE twitter_user_id = $1", [userId]);
   }
 
-  /**
-   * Check operator account balance
-   */
   async getOperatorBalance(): Promise<number | null> {
     if (!this.client || !this.client.operatorAccountId) {
       return null;
