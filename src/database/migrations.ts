@@ -3,10 +3,9 @@ import { logger } from "../utils/logger";
 
 export async function runMigrations(): Promise<void> {
   const client = await pool.connect();
-
   try {
     logger.info("Running database migrations...");
-
+    
     await client.query(`
       -- Main wallets table
       CREATE TABLE IF NOT EXISTS wallets (
@@ -28,11 +27,33 @@ export async function runMigrations(): Promise<void> {
         CONSTRAINT unique_twitter_user UNIQUE(twitter_user_id)
       );
 
+      -- Add new columns for wallet tracking and on-chain accounts
+      ALTER TABLE wallets 
+      ADD COLUMN IF NOT EXISTS account_id VARCHAR(50);
+      
+      ALTER TABLE wallets 
+      ADD COLUMN IF NOT EXISTS last_balance_check TIMESTAMP;
+      
+      ALTER TABLE wallets 
+      ADD COLUMN IF NOT EXISTS current_balance DECIMAL(20, 8) DEFAULT 0;
+      
+      ALTER TABLE wallets 
+      ADD COLUMN IF NOT EXISTS is_funded BOOLEAN DEFAULT FALSE;
+      
+      ALTER TABLE wallets 
+      ADD COLUMN IF NOT EXISTS airdrop_sent BOOLEAN DEFAULT FALSE;
+      
+      ALTER TABLE wallets 
+      ADD COLUMN IF NOT EXISTS airdrop_sent_at TIMESTAMP;
+
       -- Indexes for wallets
       CREATE INDEX IF NOT EXISTS idx_twitter_user_id ON wallets(twitter_user_id);
       CREATE INDEX IF NOT EXISTS idx_created_at ON wallets(created_at);
       CREATE INDEX IF NOT EXISTS idx_activated ON wallets(activated);
       CREATE INDEX IF NOT EXISTS idx_account_alias ON wallets(account_alias);
+      CREATE INDEX IF NOT EXISTS idx_account_id ON wallets(account_id);
+      CREATE INDEX IF NOT EXISTS idx_is_funded ON wallets(is_funded);
+      CREATE INDEX IF NOT EXISTS idx_airdrop_sent ON wallets(airdrop_sent);
 
       -- Rate limits table
       CREATE TABLE IF NOT EXISTS rate_limits (
@@ -43,7 +64,7 @@ export async function runMigrations(): Promise<void> {
         created_at TIMESTAMP DEFAULT NOW(),
         CONSTRAINT rate_limit_check CHECK (ip_address IS NOT NULL OR twitter_user_id IS NOT NULL)
       );
-
+      
       CREATE INDEX IF NOT EXISTS idx_rate_limits_user ON rate_limits(twitter_user_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_rate_limits_ip ON rate_limits(ip_address, created_at);
 
@@ -55,7 +76,7 @@ export async function runMigrations(): Promise<void> {
         details JSONB,
         created_at TIMESTAMP DEFAULT NOW()
       );
-
+      
       CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(twitter_user_id);
       CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at);
 
@@ -68,7 +89,7 @@ export async function runMigrations(): Promise<void> {
         type VARCHAR(50),
         success BOOLEAN DEFAULT true
       );
-
+      
       CREATE INDEX IF NOT EXISTS idx_scheduled_dms_user ON scheduled_dms_log(user_id);
 
       -- DM interactions
@@ -80,9 +101,21 @@ export async function runMigrations(): Promise<void> {
         response_type VARCHAR(50),
         created_at TIMESTAMP DEFAULT NOW()
       );
-
+      
       CREATE INDEX IF NOT EXISTS idx_dm_interactions_user ON dm_interactions(user_id);
       CREATE INDEX IF NOT EXISTS idx_dm_interactions_created ON dm_interactions(created_at);
+
+      -- Wallet statistics view
+      CREATE OR REPLACE VIEW wallet_stats AS
+      SELECT 
+        COUNT(*) as total_wallets,
+        COUNT(*) FILTER (WHERE is_funded = TRUE) as funded_wallets,
+        COUNT(*) FILTER (WHERE is_funded = FALSE) as unfunded_wallets,
+        COUNT(*) FILTER (WHERE airdrop_sent = TRUE) as airdropped_wallets,
+        COUNT(*) FILTER (WHERE is_funded = TRUE AND airdrop_sent = FALSE) as ready_for_airdrop,
+        COALESCE(SUM(current_balance), 0) as total_balance_hbar,
+        MAX(last_balance_check) as last_check_time
+      FROM wallets;
     `);
 
     logger.info("Database migrations completed successfully");
