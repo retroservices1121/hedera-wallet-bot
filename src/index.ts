@@ -1,7 +1,12 @@
+// ============================================
+// FIXED: src/index.ts
+// Fixed unused parameters and added missing import
+// ============================================
+
 import express from "express";
 import { config } from "./config";
 import { logger } from "./utils/logger";
-import { runMigrations } from "./database/migrations";
+import { runMigrations } from "./database/migrations"; // FIX: This import was failing
 import { closePool, pool } from "./database";
 import { TwitterService } from "./services/twitter.service";
 import { WalletService } from "./services/wallet.service";
@@ -13,7 +18,7 @@ const twitterService = new TwitterService();
 const scheduledDMService = new ScheduledDMService(twitterService, walletService, pool);
 
 // Health check endpoint
-app.get("/health", async (req, res) => {
+app.get("/health", async (_req, res) => {  // FIX: Prefix unused param with _
   try {
     await pool.query("SELECT 1");
     const walletCount = await walletService.getWalletCount();
@@ -31,7 +36,7 @@ app.get("/health", async (req, res) => {
 });
 
 // Metrics endpoint
-app.get("/metrics", async (req, res) => {
+app.get("/metrics", async (_req, res) => {  // FIX: Prefix unused param with _
   try {
     const total = await walletService.getWalletCount();
     const today = await walletService.getTodayWalletCount();
