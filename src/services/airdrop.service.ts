@@ -15,7 +15,7 @@ export class AirdropService {
 
   constructor(pool: Pool, hederaClient: Client, tracker: WalletTrackingService) {
     this.pool = pool;
-    this.client = client;
+    this.client = hederaClient;
     this.tracker = tracker;
   }
 
