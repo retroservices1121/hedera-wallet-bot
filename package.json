@@ -1,7 +1,7 @@
 {
   "name": "hedera-wallet-bot",
   "version": "1.0.0",
-  "description": "Hedera wallet creation bot for Twitter using Virtuals GAME framework",
+  "description": "Hedera wallet creation bot ",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -11,7 +11,7 @@
     "test-connection": "ts-node scripts/test-connection.ts"
   },
   "keywords": ["hedera", "wallet", "twitter", "bot", "crypto"],
-  "author": "Your Name",
+  "author": "Spredd Markets",
   "license": "MIT",
   "dependencies": {
     "@hashgraph/sdk": "^2.40.0",
