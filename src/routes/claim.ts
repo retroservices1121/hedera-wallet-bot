@@ -95,7 +95,7 @@ router.get("/:token", async (req: Request, res: Response) => {
   } catch (error: any) {
     logger.error({ error }, "Failed to process claim request");
     
-    res.status(400).json({
+    return res.status(400).json({
       error: "Invalid or expired token",
       message: "This link may have expired or been used already. Please contact support if you need help."
     });
