@@ -1,4 +1,4 @@
-// src/services/wallet.service.ts - COMPLETE REPLACEMENT
+// src/services/wallet.service.ts - WITH BETTER ERROR LOGGING
 
 import { 
   PrivateKey, 
@@ -102,6 +102,7 @@ export class WalletService {
       };
     } catch (error: any) {
       logger.error("Failed to create on-chain account:", error);
+      logger.error(`Hedera error details: ${error.message}`);
       
       if (error.message?.includes("INSUFFICIENT_PAYER_BALANCE")) {
         throw new Error(
@@ -173,6 +174,9 @@ export class WalletService {
       const encryptedKey = encryptPrivateKey(wallet.privateKey, password);
       const passwordHash = hashPassword(password);
 
+      logger.info(`Inserting wallet into database for ${username}...`);
+      logger.info(`Wallet data - accountId: ${wallet.accountId || 'null'}, accountAlias: ${wallet.accountAlias}`);
+
       const result = await pool.query(
         `INSERT INTO wallets (
           twitter_user_id, twitter_username, private_key_encrypted,
@@ -191,6 +195,8 @@ export class WalletService {
         ]
       );
 
+      logger.info(`Database insert successful for ${username}`);
+
       await this.logAudit(userId, "WALLET_CREATED", {
         username,
         account_id: wallet.accountId || null,
@@ -205,7 +211,16 @@ export class WalletService {
         password,
       };
     } catch (error: any) {
-      logger.error(`Failed to create wallet for ${username}:`, error);
+      logger.error(`❌ Failed to create wallet for ${username}`);
+      logger.error(`Error name: ${error.name}`);
+      logger.error(`Error code: ${error.code}`);
+      logger.error(`Error message: ${error.message}`);
+      logger.error(`Error detail: ${error.detail || 'N/A'}`);
+      logger.error(`Error hint: ${error.hint || 'N/A'}`);
+      logger.error(`Error position: ${error.position || 'N/A'}`);
+      logger.error(`Error table: ${error.table || 'N/A'}`);
+      logger.error(`Error column: ${error.column || 'N/A'}`);
+      logger.error(`Full error stack:`, error.stack);
       
       if (error.code === "23505") {
         throw new Error("WALLET_ALREADY_EXISTS");
