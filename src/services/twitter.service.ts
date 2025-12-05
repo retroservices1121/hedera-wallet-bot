@@ -300,7 +300,7 @@ Your wallet will be recreated with new credentials.`
         max_results: 1000,
       });
 
-      const follows = result.data?.data || [];
+      const follows = result.data || []; // Fix: result.data is the array directly
       return follows.some((user: any) => user.id === ownUserId);
     } catch (error) {
       logger.error({ error, userId }, "Failed to check if user follows");
