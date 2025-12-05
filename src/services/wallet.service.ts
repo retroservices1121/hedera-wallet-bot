@@ -93,12 +93,15 @@ export class WalletService {
       
       logger.info(`✅ On-chain account created: ${accountId.toString()}`);
       
+      // Generate EVM address properly
+      const evmAddress = `0x${publicKey.toStringRaw().slice(-40)}`;
+      
       return {
         privateKey: privateKey.toString(),
         publicKey: publicKey.toString(),
         accountId: accountId.toString(),
-        accountAlias: `0.0.${publicKey.toString()}`,
-        evmAddress: publicKey.toEvmAddress(),
+        accountAlias: publicKey.toAccountId(0, 0).toString(),
+        evmAddress: evmAddress,
       };
     } catch (error: any) {
       logger.error("Failed to create on-chain account:", error);
@@ -125,11 +128,14 @@ export class WalletService {
       const privateKey = PrivateKey.generateED25519();
       const publicKey = privateKey.publicKey;
 
+      // Generate EVM address properly
+      const evmAddress = `0x${publicKey.toStringRaw().slice(-40)}`;
+
       return {
         privateKey: privateKey.toString(),
         publicKey: publicKey.toString(),
-        accountAlias: `0.0.${publicKey.toString()}`,
-        evmAddress: publicKey.toEvmAddress(),
+        accountAlias: publicKey.toAccountId(0, 0).toString(),
+        evmAddress: evmAddress,
       };
     } catch (error) {
       logger.error("Failed to generate wallet keys:", error);
