@@ -1,16 +1,27 @@
-import dotenv from "dotenv";
-dotenv.config();
+// src/config/index.ts
+
+function validateEnv(key: string): string {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${key}`);
+  }
+  return value;
+}
+
+function getOptionalEnv(key: string): string | undefined {
+  return process.env[key];
+}
 
 export interface Config {
   gameApiKey: string;
   gameTwitterToken: string;
   databaseUrl: string;
+  usdcTokenId: string;
   operatorAccountId?: string;
   operatorPrivateKey?: string;
-  usdcTokenId: string;
-  encryptionKey: string;              // ADD THIS
-  claimTokenSecret: string;            // ADD THIS
-  environment: "development" | "staging" | "production";
+  encryptionKey: string;
+  claimTokenSecret: string;
+  environment: "development" | "production";
   port: number;
   maxWalletsPerUser: number;
   maxWalletsPerDay: number;
@@ -18,30 +29,22 @@ export interface Config {
   launchDate?: Date;
 }
 
-function validateEnv(key: string): string {
-  const value = process.env[key];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${key}`);  // FIX: Parentheses not backtick
-  }
-  return value;
-}
-
-function getOptionalEnv(key: string): string | undefined {  // ADD THIS HELPER
-  return process.env[key];
-}
-
 export const config: Config = {
+  // Required
   gameApiKey: validateEnv("GAME_API_KEY"),
   gameTwitterToken: validateEnv("GAME_TWITTER_ACCESS_TOKEN"),
   databaseUrl: validateEnv("DATABASE_URL"),
-  operatorAccountId: process.env.OPERATOR_ACCOUNT_ID,
-  operatorPrivateKey: process.env.OPERATOR_PRIVATE_KEY,
   usdcTokenId: validateEnv("USDC_TOKEN_ID"),
   
-  // ADD THESE TWO LINES:
+  // Encryption keys
   encryptionKey: validateEnv("ENCRYPTION_KEY"),
-  claimTokenSecret: getOptionalEnv("CLAIM_TOKEN_SECRET") || validateEnv("ENCRYPTION_KEY"),
+  claimTokenSecret: getOptionalEnv("CLAIM_TOKEN_SECRET") || validateEnv("ENCRYPTION_KEY"), // Use ENCRYPTION_KEY if not set
   
+  // Optional - Hedera operator
+  operatorAccountId: getOptionalEnv("OPERATOR_ACCOUNT_ID"),
+  operatorPrivateKey: getOptionalEnv("OPERATOR_PRIVATE_KEY"),
+  
+  // Other config
   environment: (process.env.NODE_ENV as any) || "development",
   port: parseInt(process.env.PORT || "3000"),
   maxWalletsPerUser: parseInt(process.env.MAX_WALLETS_PER_USER || "1"),
@@ -49,3 +52,9 @@ export const config: Config = {
   logLevel: process.env.LOG_LEVEL || "info",
   launchDate: process.env.LAUNCH_DATE ? new Date(process.env.LAUNCH_DATE) : undefined,
 };
+
+// Warnings
+if (!config.operatorAccountId || !config.operatorPrivateKey) {
+  console.warn("\n⚠️  WARNING: Hedera operator credentials not configured");
+  console.warn("Set OPERATOR_ACCOUNT_ID and OPERATOR_PRIVATE_KEY to enable on-chain wallet creation\n");
+}
