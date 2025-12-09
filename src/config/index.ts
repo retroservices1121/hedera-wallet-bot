@@ -1,4 +1,6 @@
 // src/config/index.ts
+import dotenv from "dotenv";
+dotenv.config();
 
 function validateEnv(key: string): string {
   const value = process.env[key];
@@ -38,7 +40,7 @@ export const config: Config = {
   
   // Encryption keys
   encryptionKey: validateEnv("ENCRYPTION_KEY"),
-  claimTokenSecret: getOptionalEnv("CLAIM_TOKEN_SECRET") || validateEnv("ENCRYPTION_KEY"), // Use ENCRYPTION_KEY if not set
+  claimTokenSecret: getOptionalEnv("CLAIM_TOKEN_SECRET") || validateEnv("ENCRYPTION_KEY"),
   
   // Optional - Hedera operator
   operatorAccountId: getOptionalEnv("OPERATOR_ACCOUNT_ID"),
