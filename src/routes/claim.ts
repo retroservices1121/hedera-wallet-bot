@@ -76,7 +76,7 @@ router.get("/:token", async (req: Request, res: Response) => {
     logger.info({ username: data.username }, "Wallet credentials claimed successfully");
 
     // Return credentials with raw private key for wallet import
-    res.json({
+    return res.json({
       success: true,
       credentials: {
         accountId: data.accountId,
