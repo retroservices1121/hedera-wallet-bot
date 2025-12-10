@@ -92,7 +92,7 @@ export class TwitterService {
         await new Promise(resolve => setTimeout(resolve, 30000));
       } catch (error) {
         logger.error({ error }, "Error monitoring mentions");
-        await new Promise(resolve => setTimeout(resolve, 60000));
+        await new Promise(resolve => setTimeout(resolve, 120000));
       }
     }
   }
