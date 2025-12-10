@@ -1,6 +1,6 @@
 // ============================================
 // UPDATED: src/services/twitter.service.ts
-// Added follow check and claim link fallback
+// Fixed: Hardcoded bot user ID for @spreddterminal
 // ============================================
 
 import { TwitterApi } from "@virtuals-protocol/game-twitter-node";
@@ -322,7 +322,7 @@ Your wallet will be recreated with new credentials.`
       return this.botUsername;
     } catch (error) {
       logger.error({ error }, "Failed to get bot username");
-      return "SpreddBot"; // Fallback
+      return "spreddterminal"; // Fallback to known username
     }
   }
 
@@ -370,15 +370,11 @@ Your wallet will be recreated with new credentials.`
   private async getOwnUserId(): Promise<string> {
     if (this.ownUserId) return this.ownUserId;
 
-    try {
-      const me = await this.twitter.v2.me();
-      this.ownUserId = me.data.id;
-      logger.info({ userId: this.ownUserId }, "Retrieved own user ID");
-      return this.ownUserId;
-    } catch (error) {
-      logger.error({ error }, "Failed to get own user ID");
-      throw error;
-    }
+    // Hardcoded bot Twitter user ID for @spreddterminal
+    // GAME framework v2.me() endpoint is unreliable, so we use the known ID
+    this.ownUserId = "1553617361114017792";
+    logger.info({ userId: this.ownUserId }, "Using bot user ID");
+    return this.ownUserId;
   }
 
   stop(): void {
