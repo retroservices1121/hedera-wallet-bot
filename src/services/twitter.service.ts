@@ -87,14 +87,16 @@ export class TwitterService {
             (u: any) => u.id === tweet.author_id
           );
 
-          if (!author) {
-            await this.mentionTracker.markAsProcessed(
-              tweet.id,
-              tweet.author_id,
-              'unknown',
-              'no_author_data',
-              tweet.text || ''
-            );
+          if (!author || !tweet.author_id) {
+            if (tweet.author_id) {
+              await this.mentionTracker.markAsProcessed(
+                tweet.id,
+                tweet.author_id,
+                'unknown',
+                'no_author_data',
+                tweet.text || ''
+              );
+            }
             continue;
           }
 
