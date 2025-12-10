@@ -380,52 +380,6 @@ ${claimLink}
   }
 
   /**
-   * Check if user follows the bot
-   */
-  private async checkIfUserFollows(userId: string): Promise<boolean> {
-    try {
-      const ownUserId = await this.getOwnUserId();
-      
-      const result = await this.twitter.v2.following(userId, {
-        max_results: 100, // Reduced from 1000 to avoid rate limits
-      });
-
-      const follows = result.data || [];
-      const isFollowing = follows.some((user: any) => user.id === ownUserId);
-      
-      logger.debug({ userId, isFollowing, followsCount: follows.length }, "Follow check completed");
-      return isFollowing;
-    } catch (error: any) {
-      // Check if it's a rate limit error
-      if (error?.code === 429 || error?.message?.includes('rate limit') || error?.message?.includes('Rate limit')) {
-        logger.warn({ userId }, "Rate limit exceeded - assuming user follows to avoid blocking");
-        return true; // Assume following on rate limit
-      }
-      
-      logger.error({ error, userId }, "Failed to check if user follows - assuming they follow");
-      // On any other error, assume they're following to avoid blocking wallet creation
-      return true;
-    }
-  }
-
-  /**
-   * Get bot's username
-   */
-  private botUsername?: string;
-  private async getBotUsername(): Promise<string> {
-    if (this.botUsername) return this.botUsername;
-
-    try {
-      const me = await this.twitter.v2.me();
-      this.botUsername = me.data.username;
-      return this.botUsername;
-    } catch (error) {
-      logger.error({ error }, "Failed to get bot username");
-      return "spreddterminal";
-    }
-  }
-
-  /**
    * Generate encrypted claim token
    */
   private generateClaimToken(data: any): string {
