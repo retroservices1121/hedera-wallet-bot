@@ -83,7 +83,7 @@ function renderSuccessPage(credentials: any) {
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #667eea 0%, #05000a 100%);
       min-height: 100vh;
       display: flex;
       align-items: center;
