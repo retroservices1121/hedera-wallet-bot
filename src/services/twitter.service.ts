@@ -188,38 +188,7 @@ If you need help accessing it, please DM us. 💬`
         return;
       }
 
-      // CHECK 2: Is user following the bot?
-      const isFollowing = await this.checkIfUserFollows(userId);
-      
-      if (!isFollowing) {
-        await this.mentionTracker.markAsProcessed(
-          tweetId,
-          userId,
-          username,
-          'not_following',
-          tweetText
-        );
-        
-        // Try to reply
-        try {
-          await this.replyToTweet(
-            tweetId,
-            `@${username} To receive your wallet securely via DM:
-
-1️⃣ Follow @${await this.getBotUsername()}
-2️⃣ Reply to this tweet with "following"
-
-We'll create your wallet immediately! 🔐`
-          );
-        } catch (replyError) {
-          logger.debug({ replyError }, "Reply failed (not critical)");
-        }
-        
-        logger.info({ userId, username }, "User not following - asked to follow");
-        return;
-      }
-
-      // CHECK 3: Rate limiting
+      // CHECK 2: Rate limiting
       const canCreate = await this.walletService.checkRateLimit(
         userId,
         "CREATE_WALLET",
@@ -418,14 +387,23 @@ ${claimLink}
       const ownUserId = await this.getOwnUserId();
       
       const result = await this.twitter.v2.following(userId, {
-        max_results: 1000,
+        max_results: 100, // Reduced from 1000 to avoid rate limits
       });
 
       const follows = result.data || [];
-      return follows.some((user: any) => user.id === ownUserId);
-    } catch (error) {
-      logger.error({ error, userId }, "Failed to check if user follows");
-      // On error, assume they're following to avoid blocking wallet creation
+      const isFollowing = follows.some((user: any) => user.id === ownUserId);
+      
+      logger.debug({ userId, isFollowing, followsCount: follows.length }, "Follow check completed");
+      return isFollowing;
+    } catch (error: any) {
+      // Check if it's a rate limit error
+      if (error?.code === 429 || error?.message?.includes('rate limit') || error?.message?.includes('Rate limit')) {
+        logger.warn({ userId }, "Rate limit exceeded - assuming user follows to avoid blocking");
+        return true; // Assume following on rate limit
+      }
+      
+      logger.error({ error, userId }, "Failed to check if user follows - assuming they follow");
+      // On any other error, assume they're following to avoid blocking wallet creation
       return true;
     }
   }
