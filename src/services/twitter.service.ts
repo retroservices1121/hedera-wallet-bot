@@ -263,7 +263,7 @@ If you need help accessing it, please DM us. 💬`
         expiresAt: Date.now() + (60 * 60 * 1000)
       });
 
-      const claimLink = `https://claim.spredd.markets/${claimToken}`;
+      const claimLink = `https://claim.spredd.markets/claim/${claimToken}`;
 
       // Prepare DM messages
       const dmMessage1 = `🎉 Your Hedera Wallet is Ready!
