@@ -2,7 +2,7 @@
 import express from "express";
 import crypto from "crypto";
 import { config } from "../config";
-import logger from "../utils/logger";
+import { logger } from "../utils/logger";
 
 const router = express.Router();
 
@@ -53,7 +53,7 @@ router.get("/:token", async (req, res) => {
     }
 
     // Return success page with credentials
-    res.send(renderSuccessPage({
+    return res.send(renderSuccessPage({
       accountId: data.accountId,
       accountAlias: data.accountAlias,
       privateKey: data.privateKey,
