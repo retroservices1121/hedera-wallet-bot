@@ -64,6 +64,11 @@ export class TwitterService {
         let skippedDuplicate = 0;
 
         for (const tweet of mentions.data?.data || []) {
+          // Skip if no created_at timestamp
+          if (!tweet.created_at) {
+            continue;
+          }
+
           // Check if tweet is too old (more than 10 minutes)
           const tweetTime = new Date(tweet.created_at).getTime();
           if (tweetTime < tenMinutesAgo) {
@@ -88,14 +93,14 @@ export class TwitterService {
               tweet.author_id,
               'unknown',
               'no_author_data',
-              tweet.text
+              tweet.text || ''
             );
             continue;
           }
 
           // Check for trigger words
           const triggerWords = ['wallet', 'create wallet', 'sign up', 'hedera', 'following'];
-          const tweetText = tweet.text.toLowerCase();
+          const tweetText = (tweet.text || '').toLowerCase();
 
           if (!triggerWords.some(word => tweetText.includes(word))) {
             await this.mentionTracker.markAsProcessed(
@@ -103,7 +108,7 @@ export class TwitterService {
               author.id,
               author.username,
               'no_trigger_word',
-              tweet.text
+              tweet.text || ''
             );
             continue;
           }
@@ -121,7 +126,7 @@ export class TwitterService {
           processedCount++;
 
           // Process the request (async, don't wait)
-          this.handleWalletRequest(author.id, author.username, tweet.id, tweet.text).catch(error => {
+          this.handleWalletRequest(author.id, author.username, tweet.id, tweet.text || '').catch(error => {
             logger.error({ error, tweetId: tweet.id }, "Unhandled error in wallet request");
           });
         }
