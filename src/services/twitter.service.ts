@@ -1,23 +1,26 @@
 // ============================================
 // UPDATED: src/services/twitter.service.ts
-// Fixed: Hardcoded bot user ID for @spreddterminal
+// Database-backed mention tracking with time-based filtering
 // ============================================
 
 import { TwitterApi } from "@virtuals-protocol/game-twitter-node";
 import { config } from "../config";
 import { logger } from "../utils/logger";
 import { WalletService } from "./wallet.service";
+import { MentionTrackingService } from "./mention-tracking.service";
+import { pool } from "../database";
 import { dmTemplates } from "../utils/dm-templates";
 import crypto from "crypto";
 
 export class TwitterService {
   private twitter!: TwitterApi;
   private walletService: WalletService;
+  private mentionTracker: MentionTrackingService;
   private isMonitoring: boolean = false;
-  private processedTweets: Set<string> = new Set();
 
   constructor() {
     this.walletService = new WalletService();
+    this.mentionTracker = new MentionTrackingService(pool);
   }
 
   async initialize(): Promise<void> {
@@ -33,65 +36,111 @@ export class TwitterService {
   async start(): Promise<void> {
     logger.info("Starting Twitter mention monitoring...");
     this.isMonitoring = true;
+    
+    // Start monitoring loop
     this.monitorMentions();
+    
+    // Start periodic cleanup (every 24 hours)
+    this.scheduleCleanup();
   }
 
   private async monitorMentions(): Promise<void> {
-    let lastCheckedId: string | undefined;
-
     while (this.isMonitoring) {
       try {
         const mentions = await this.twitter.v2.userMentionTimeline(
           await this.getOwnUserId(),
           {
-            max_results: 10,
-            since_id: lastCheckedId,
+            max_results: 20, // Get more mentions to catch up
             expansions: ['author_id'],
             'tweet.fields': ['created_at', 'conversation_id'],
             'user.fields': ['username'],
           }
         );
 
-        for (const tweet of mentions.data?.data || []) {
-          if (this.processedTweets.has(tweet.id)) continue;
+        const now = Date.now();
+        const tenMinutesAgo = now - (10 * 60 * 1000); // Only process last 10 minutes
+        let processedCount = 0;
+        let skippedOld = 0;
+        let skippedDuplicate = 0;
 
-          if (!lastCheckedId || tweet.id > lastCheckedId) {
-            lastCheckedId = tweet.id;
+        for (const tweet of mentions.data?.data || []) {
+          // Check if tweet is too old (more than 10 minutes)
+          const tweetTime = new Date(tweet.created_at).getTime();
+          if (tweetTime < tenMinutesAgo) {
+            skippedOld++;
+            continue;
+          }
+
+          // Check if already processed in database
+          const alreadyProcessed = await this.mentionTracker.isProcessed(tweet.id);
+          if (alreadyProcessed) {
+            skippedDuplicate++;
+            continue;
           }
 
           const author = mentions.includes?.users?.find(
             (u: any) => u.id === tweet.author_id
           );
 
-          if (!author) continue;
+          if (!author) {
+            await this.mentionTracker.markAsProcessed(
+              tweet.id,
+              tweet.author_id,
+              'unknown',
+              'no_author_data',
+              tweet.text
+            );
+            continue;
+          }
 
+          // Check for trigger words
           const triggerWords = ['wallet', 'create wallet', 'sign up', 'hedera', 'following'];
           const tweetText = tweet.text.toLowerCase();
 
           if (!triggerWords.some(word => tweetText.includes(word))) {
+            await this.mentionTracker.markAsProcessed(
+              tweet.id,
+              author.id,
+              author.username,
+              'no_trigger_word',
+              tweet.text
+            );
             continue;
           }
 
-          this.processedTweets.add(tweet.id);
-
           logger.info(
-            { userId: author.id, username: author.username, tweetId: tweet.id },
+            { 
+              userId: author.id, 
+              username: author.username, 
+              tweetId: tweet.id,
+              age: Math.round((now - tweetTime) / 1000) + 's'
+            },
             "Processing wallet request"
           );
 
-          this.handleWalletRequest(author.id, author.username, tweet.id).catch(error => {
+          processedCount++;
+
+          // Process the request (async, don't wait)
+          this.handleWalletRequest(author.id, author.username, tweet.id, tweet.text).catch(error => {
             logger.error({ error, tweetId: tweet.id }, "Unhandled error in wallet request");
           });
         }
 
-        if (this.processedTweets.size > 1000) {
-          const tweetsArray = Array.from(this.processedTweets);
-          this.processedTweets = new Set(tweetsArray.slice(-1000));
+        if (processedCount > 0 || skippedOld > 0 || skippedDuplicate > 0) {
+          logger.info(
+            { processedCount, skippedOld, skippedDuplicate },
+            "Mention processing summary"
+          );
         }
 
+        // Wait 30 seconds before next check
         await new Promise(resolve => setTimeout(resolve, 30000));
-      } catch (error) {
-        logger.error({ error }, "Error monitoring mentions");
+      } catch (error: any) {
+        logger.error({ 
+          error,
+          errorMessage: error?.message,
+          errorCode: error?.code 
+        }, "Error monitoring mentions - will retry in 2 minutes");
         await new Promise(resolve => setTimeout(resolve, 120000));
       }
     }
@@ -100,19 +149,34 @@ export class TwitterService {
   private async handleWalletRequest(
     userId: string,
     username: string,
-    tweetId: string
+    tweetId: string,
+    tweetText: string
   ): Promise<void> {
     try {
       // CHECK 1: Does user already have a wallet?
       const hasWallet = await this.walletService.hasWallet(userId);
       
       if (hasWallet) {
-        await this.replyToTweet(
+        await this.mentionTracker.markAsProcessed(
           tweetId,
-          `@${username} You already have a wallet! 
+          userId,
+          username,
+          'already_has_wallet',
+          tweetText
+        );
+        
+        // Try to reply (but don't fail if it doesn't work)
+        try {
+          await this.replyToTweet(
+            tweetId,
+            `@${username} You already have a wallet! 
 
 If you need help accessing it, please DM us. 💬`
-        );
+          );
+        } catch (replyError) {
+          logger.debug({ replyError }, "Reply failed (not critical)");
+        }
+        
         logger.info({ userId, username }, "User already has wallet");
         return;
       }
@@ -121,15 +185,29 @@ If you need help accessing it, please DM us. 💬`
       const isFollowing = await this.checkIfUserFollows(userId);
       
       if (!isFollowing) {
-        await this.replyToTweet(
+        await this.mentionTracker.markAsProcessed(
           tweetId,
-          `@${username} To receive your wallet securely via DM:
+          userId,
+          username,
+          'not_following',
+          tweetText
+        );
+        
+        // Try to reply
+        try {
+          await this.replyToTweet(
+            tweetId,
+            `@${username} To receive your wallet securely via DM:
 
 1️⃣ Follow @${await this.getBotUsername()}
 2️⃣ Reply to this tweet with "following"
 
 We'll create your wallet immediately! 🔐`
-        );
+          );
+        } catch (replyError) {
+          logger.debug({ replyError }, "Reply failed (not critical)");
+        }
+        
         logger.info({ userId, username }, "User not following - asked to follow");
         return;
       }
@@ -142,10 +220,23 @@ We'll create your wallet immediately! 🔐`
       );
 
       if (!canCreate) {
-        await this.replyToTweet(
+        await this.mentionTracker.markAsProcessed(
           tweetId,
-          `@${username} You've reached the wallet creation limit. Please try again tomorrow.`
+          userId,
+          username,
+          'rate_limited',
+          tweetText
         );
+        
+        try {
+          await this.replyToTweet(
+            tweetId,
+            `@${username} You've reached the wallet creation limit. Please try again tomorrow.`
+          );
+        } catch (replyError) {
+          logger.debug({ replyError }, "Reply failed (not critical)");
+        }
+        
         logger.warn({ userId, username }, "Rate limit exceeded");
         return;
       }
@@ -154,10 +245,23 @@ We'll create your wallet immediately! 🔐`
       const todayCount = await this.walletService.getTodayWalletCount();
       
       if (todayCount >= config.maxWalletsPerDay) {
-        await this.replyToTweet(
+        await this.mentionTracker.markAsProcessed(
           tweetId,
-          `@${username} We've reached our daily wallet limit! Please try again tomorrow. 🙏`
+          userId,
+          username,
+          'daily_limit',
+          tweetText
         );
+        
+        try {
+          await this.replyToTweet(
+            tweetId,
+            `@${username} We've reached our daily wallet limit! Please try again tomorrow. 🙏`
+          );
+        } catch (replyError) {
+          logger.debug({ replyError }, "Reply failed (not critical)");
+        }
+        
         logger.warn({ todayCount }, "Daily limit reached");
         return;
       }
@@ -172,15 +276,15 @@ We'll create your wallet immediately! 🔐`
       const walletCount = await this.walletService.getWalletCount();
       const walletAddress = wallet.account_id || wallet.account_alias;
 
-      // Generate encrypted claim link (expires in 1 HOUR - strict security)
+      // Generate encrypted claim link (expires in 1 HOUR)
       const claimToken = this.generateClaimToken({
-        privateKey: rawPrivateKey, // RAW private key (never stored in DB)
+        privateKey: rawPrivateKey,
         password: password,
         accountId: wallet.account_id,
         accountAlias: wallet.account_alias,
         userId: userId,
         username: username,
-        expiresAt: Date.now() + (60 * 60 * 1000) // 1 HOUR
+        expiresAt: Date.now() + (60 * 60 * 1000)
       });
 
       const claimLink = `https://claim.spredd.markets/${claimToken}`;
@@ -203,17 +307,15 @@ ${claimLink}
 
       const dmMessage2 = dmTemplates.setupGuide(username);
 
-      // SEND DMs (no fallback to public)
+      // SEND DMs
       let dm1Sent = false;
-      let dm2Scheduled = false;
       
-      // Always mark claim link as generated
       await this.walletService.markClaimLinkGenerated(userId);
       
       try {
         await this.sendDM(userId, dmMessage1);
         await this.walletService.markDM1Sent(userId);
-        logger.info({ userId, username }, "✅ DM #1 sent with claim link");
+        logger.info({ userId, username, claimLink }, "✅ DM #1 sent with claim link");
         dm1Sent = true;
 
         // Schedule DM #2 for 5 minutes later
@@ -226,46 +328,61 @@ ${claimLink}
             logger.error({ error, userId }, "❌ Failed to send DM #2 (not critical)");
           }
         }, 5 * 60 * 1000);
-        
-        dm2Scheduled = true;
 
       } catch (dmError) {
         await this.walletService.markDM1Failed(userId);
-        logger.error({ userId, username, error: dmError }, "❌ CRITICAL: DM #1 failed - user cannot access wallet");
-        
-        // If DM fails, we have a problem - they need to follow us
-        // Don't send public reply with credentials for security
+        logger.error({ userId, username, error: dmError }, "❌ CRITICAL: DM #1 failed");
+        dm1Sent = false;
       }
 
-      // PUBLIC REPLY - Never includes claim link (DM only)
+      // Mark as processed with appropriate action
+      await this.mentionTracker.markAsProcessed(
+        tweetId,
+        userId,
+        username,
+        dm1Sent ? 'wallet_created' : 'wallet_created_dm_failed',
+        tweetText
+      );
+
+      // PUBLIC REPLY (optional - will fail with GAME but that's okay)
       if (dm1Sent) {
-        await this.replyToTweet(
-          tweetId,
-          `@${username} ✅ Your Hedera wallet is ready!
+        try {
+          await this.replyToTweet(
+            tweetId,
+            `@${username} ✅ Your Hedera wallet is ready!
 
 📍 Address: ${walletAddress}
 
 🔐 Check your DMs for secure access!
 
 💡 You're user #${walletCount}! Early users get bonus rewards! 🚀`
-        );
-      } else {
-        // DM failed - ask them to follow and try again
-        await this.replyToTweet(
-          tweetId,
-          `@${username} ⚠️ Wallet created but couldn't send DM!
-
-Please make sure you're following @${await this.getBotUsername()} and mention us again.
-
-Your wallet will be recreated with new credentials.`
-        );
+          );
+        } catch (replyError) {
+          logger.debug({ replyError }, "Public reply failed (expected with GAME)");
+        }
       }
 
-      logger.info({ userId, username, walletCount, walletAddress, dm1Sent, dm2Scheduled }, "✅ Wallet process completed");
+      logger.info({ 
+        userId, 
+        username, 
+        walletCount, 
+        walletAddress, 
+        dm1Sent 
+      }, "✅ Wallet creation completed");
 
     } catch (error: any) {
       logger.error({ error, userId, username }, "Error handling wallet request");
       
+      // Mark as error in tracking
+      await this.mentionTracker.markAsProcessed(
+        tweetId,
+        userId,
+        username,
+        'error',
+        tweetText
+      );
+      
+      // Try to send error reply
       let errorMessage = `@${username} ❌ Something went wrong creating your wallet. `;
 
       if (error.message?.includes("WALLET_ALREADY_EXISTS")) {
@@ -281,10 +398,8 @@ Your wallet will be recreated with new credentials.`
       try {
         await this.replyToTweet(tweetId, errorMessage);
       } catch (replyError) {
-        logger.error({ error: replyError, userId }, "Failed to send error reply");
+        logger.debug({ replyError }, "Error reply failed");
       }
-
-      this.processedTweets.delete(tweetId);
     }
   }
 
@@ -295,12 +410,11 @@ Your wallet will be recreated with new credentials.`
     try {
       const ownUserId = await this.getOwnUserId();
       
-      // Check if userId follows ownUserId
       const result = await this.twitter.v2.following(userId, {
         max_results: 1000,
       });
 
-      const follows = result.data || []; // Fix: result.data is the array directly
+      const follows = result.data || [];
       return follows.some((user: any) => user.id === ownUserId);
     } catch (error) {
       logger.error({ error, userId }, "Failed to check if user follows");
@@ -322,7 +436,7 @@ Your wallet will be recreated with new credentials.`
       return this.botUsername;
     } catch (error) {
       logger.error({ error }, "Failed to get bot username");
-      return "spreddterminal"; // Fallback to known username
+      return "spreddterminal";
     }
   }
 
@@ -361,7 +475,7 @@ Your wallet will be recreated with new credentials.`
       await this.twitter.v2.reply(text, tweetId);
       logger.debug({ tweetId }, "Reply sent successfully");
     } catch (error) {
-      logger.error({ error, tweetId }, "Failed to reply to tweet");
+      // Don't log reply failures as errors - GAME often doesn't support replies
       throw error;
     }
   }
@@ -371,10 +485,24 @@ Your wallet will be recreated with new credentials.`
     if (this.ownUserId) return this.ownUserId;
 
     // Hardcoded bot Twitter user ID for @spreddterminal
-    // GAME framework v2.me() endpoint is unreliable, so we use the known ID
     this.ownUserId = "1553617361114017792";
     logger.info({ userId: this.ownUserId }, "Using bot user ID");
     return this.ownUserId;
+  }
+
+  /**
+   * Periodic cleanup of old processed mentions
+   */
+  private scheduleCleanup(): void {
+    // Run cleanup every 24 hours
+    setInterval(async () => {
+      try {
+        const deleted = await this.mentionTracker.cleanup();
+        logger.info({ deleted }, "Completed periodic mention tracking cleanup");
+      } catch (error) {
+        logger.error({ error }, "Failed periodic cleanup");
+      }
+    }, 24 * 60 * 60 * 1000);
   }
 
   stop(): void {
