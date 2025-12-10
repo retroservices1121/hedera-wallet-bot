@@ -46,6 +46,22 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE wallets 
       ADD COLUMN IF NOT EXISTS airdrop_sent_at TIMESTAMP;
 
+      -- Add DM tracking columns to wallets
+      ALTER TABLE wallets 
+      ADD COLUMN IF NOT EXISTS dm1_sent BOOLEAN DEFAULT FALSE;
+      
+      ALTER TABLE wallets 
+      ADD COLUMN IF NOT EXISTS dm2_sent BOOLEAN DEFAULT FALSE;
+      
+      ALTER TABLE wallets 
+      ADD COLUMN IF NOT EXISTS dm1_failed_at TIMESTAMP;
+      
+      ALTER TABLE wallets 
+      ADD COLUMN IF NOT EXISTS claim_link_generated BOOLEAN DEFAULT FALSE;
+      
+      ALTER TABLE wallets 
+      ADD COLUMN IF NOT EXISTS claim_link_accessed_at TIMESTAMP;
+
       -- Indexes for wallets
       CREATE INDEX IF NOT EXISTS idx_twitter_user_id ON wallets(twitter_user_id);
       CREATE INDEX IF NOT EXISTS idx_created_at ON wallets(created_at);
@@ -105,6 +121,20 @@ export async function runMigrations(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_dm_interactions_user ON dm_interactions(user_id);
       CREATE INDEX IF NOT EXISTS idx_dm_interactions_created ON dm_interactions(created_at);
 
+      -- Processed mentions tracking table (NEW!)
+      CREATE TABLE IF NOT EXISTS processed_mentions (
+        tweet_id VARCHAR(50) PRIMARY KEY,
+        author_id VARCHAR(50) NOT NULL,
+        author_username VARCHAR(255) NOT NULL,
+        tweet_text TEXT,
+        processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        action_taken VARCHAR(50)
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_processed_mentions_author ON processed_mentions(author_id);
+      CREATE INDEX IF NOT EXISTS idx_processed_mentions_processed_at ON processed_mentions(processed_at);
+      CREATE INDEX IF NOT EXISTS idx_processed_mentions_lookup ON processed_mentions(tweet_id, processed_at);
+
       -- Wallet statistics view
       CREATE OR REPLACE VIEW wallet_stats AS
       SELECT 
@@ -116,6 +146,32 @@ export async function runMigrations(): Promise<void> {
         COALESCE(SUM(current_balance), 0) as total_balance_hbar,
         MAX(last_balance_check) as last_check_time
       FROM wallets;
+
+      -- DM delivery statistics view (NEW!)
+      CREATE OR REPLACE VIEW dm_delivery_stats AS
+      SELECT 
+        COUNT(*) as total_wallets,
+        COUNT(*) FILTER (WHERE dm1_sent = TRUE) as dm1_success,
+        ROUND(COUNT(*) FILTER (WHERE dm1_sent = TRUE)::numeric / 
+          NULLIF(COUNT(*), 0) * 100, 2) as dm1_success_rate,
+        COUNT(*) FILTER (WHERE dm2_sent = TRUE) as dm2_success,
+        COUNT(*) FILTER (WHERE dm1_failed_at IS NOT NULL) as dm1_failures,
+        COUNT(*) FILTER (WHERE claim_link_generated = TRUE) as claim_links_generated,
+        COUNT(*) FILTER (WHERE claim_link_accessed_at IS NOT NULL) as claim_links_accessed,
+        ROUND(COUNT(*) FILTER (WHERE claim_link_accessed_at IS NOT NULL)::numeric / 
+          NULLIF(COUNT(*) FILTER (WHERE claim_link_generated = TRUE), 0) * 100, 2) as claim_access_rate
+      FROM wallets;
+
+      -- Mention processing statistics view (NEW!)
+      CREATE OR REPLACE VIEW mention_processing_stats AS
+      SELECT 
+        DATE(processed_at) as date,
+        action_taken,
+        COUNT(*) as count
+      FROM processed_mentions
+      WHERE processed_at > NOW() - INTERVAL '30 days'
+      GROUP BY DATE(processed_at), action_taken
+      ORDER BY date DESC, action_taken;
     `);
 
     logger.info("Database migrations completed successfully");
