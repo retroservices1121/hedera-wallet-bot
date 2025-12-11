@@ -199,7 +199,7 @@ function renderSuccessPage(credentials: any) {
     }
 
     .copy-btn {
-      background: #667eea;
+      background: #ff6b35;
       color: white;
       border: none;
       border-radius: 8px;
@@ -215,9 +215,9 @@ function renderSuccessPage(credentials: any) {
     }
 
     .copy-btn:hover {
-      background: #5a67d8;
+      background: #ff8c42;
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
     }
 
     .copy-btn:active {
