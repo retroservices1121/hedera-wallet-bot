@@ -278,12 +278,13 @@ function renderSuccessPage(credentials: any) {
     }
 
     .footer a {
-      color: #667eea;
+      color: #ff6b35;
       text-decoration: none;
       font-weight: 600;
     }
 
     .footer a:hover {
+      color: #ff8c42;
       text-decoration: underline;
     }
 
@@ -487,9 +488,14 @@ function renderErrorPage(title: string, message?: string) {
     }
 
     .footer a {
-      color: #667eea;
+      color: #ff6b35;
       text-decoration: none;
       font-weight: 600;
+    }
+    
+    .footer a:hover {
+      color: #ff8c42;
+      text-decoration: underline;
     }
   </style>
 </head>
