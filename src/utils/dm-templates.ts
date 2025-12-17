@@ -95,7 +95,18 @@ In HashPack:
 ⚠️ Don't click "Create New" - you already have one!
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💰 STEP 3: GET USDC
+💰 STEP 3: REKEY ACCOUNT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+We don't save your Private Key, but we recommend you rekey your account
+
+In HashPack:
+1. Click Settings
+2. Click "Advanced Tools"
+3. Click "Rekey Account"
+4. Follow the prompts
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 STEP 4: GET USDC
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🔥 METHOD A: Buy on Exchange
@@ -142,7 +153,6 @@ DON'T:
 📚 RESOURCES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Full guide: spredd.markets/guide
 Discord: discord.gg/fPSubt3TE7
 
 Need help? Reply here! 💪`,
