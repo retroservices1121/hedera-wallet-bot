@@ -100,18 +100,33 @@ export class TwitterService {
             continue;
           }
 
-          // Check for trigger words
-          const triggerWords = ['wallet', 'create wallet', 'sign up', 'hedera', 'following'];
+          // Check for wallet creation trigger phrases (strict matching)
           const tweetText = (tweet.text || '').toLowerCase();
-
-          if (!triggerWords.some(word => tweetText.includes(word))) {
+          
+          // Remove mentions and extra spaces for cleaner matching
+          const cleanText = tweetText
+            .replace(/@\w+/g, '') // Remove all @mentions
+            .replace(/\s+/g, ' ')  // Normalize whitespace
+            .trim();
+          
+          // Allowed phrases (must contain "create" AND "wallet")
+          const hasCreate = cleanText.includes('create');
+          const hasWallet = cleanText.includes('wallet');
+          
+          if (!hasCreate || !hasWallet) {
+            // Not a wallet creation request - ignore silently
             await this.mentionTracker.markAsProcessed(
               tweet.id,
               author.id,
               author.username,
-              'no_trigger_word',
+              'ignored_not_wallet_request',
               tweet.text || ''
             );
+            logger.debug({ 
+              userId: author.id, 
+              username: author.username,
+              text: cleanText 
+            }, "Ignored mention - not a wallet creation request");
             continue;
           }
 
