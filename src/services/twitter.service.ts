@@ -8,6 +8,7 @@ import { config } from "../config";
 import { logger } from "../utils/logger";
 import { WalletService } from "./wallet.service";
 import { MentionTrackingService } from "./mention-tracking.service";
+import { waitlistService } from "./waitlist.service";
 import { pool } from "../database";
 import { dmTemplates } from "../utils/dm-templates";
 import crypto from "crypto";
@@ -100,7 +101,7 @@ export class TwitterService {
             continue;
           }
 
-          // Check for wallet creation trigger phrases (strict matching)
+          // Check for wallet creation or waitlist trigger phrases
           const tweetText = (tweet.text || '').toLowerCase();
           
           // Remove mentions and extra spaces for cleaner matching
@@ -109,7 +110,18 @@ export class TwitterService {
             .replace(/\s+/g, ' ')  // Normalize whitespace
             .trim();
           
-          // Allowed phrases (must contain "create" AND "wallet")
+          // Check for WAITLIST request
+          const hasWaitlist = cleanText.includes('waitlist');
+          const hasAdd = cleanText.includes('add');
+          
+          if (hasWaitlist && hasAdd) {
+            // Handle waitlist signup
+            await this.handleWaitlistSignup(author.id, author.username, tweet.id, tweetText);
+            processedCount++;
+            continue;
+          }
+          
+          // Check for WALLET CREATION request
           const hasCreate = cleanText.includes('create');
           const hasWallet = cleanText.includes('wallet');
           
@@ -391,6 +403,66 @@ ${claimLink}
       } catch (replyError) {
         logger.debug({ replyError }, "Error reply failed");
       }
+    }
+  }
+
+  /**
+   * Handle waitlist signup request
+   */
+  private async handleWaitlistSignup(
+    userId: string,
+    username: string,
+    tweetId: string,
+    tweetText: string
+  ): Promise<void> {
+    try {
+      logger.info({ userId, username }, "Processing waitlist signup");
+
+      // Add to waitlist
+      const result = await waitlistService.addToWaitlist(userId, username, tweetId);
+
+      // Mark as processed
+      await this.mentionTracker.markAsProcessed(
+        tweetId,
+        userId,
+        username,
+        result.alreadyOnWaitlist ? 'waitlist_already_added' : 'waitlist_added',
+        tweetText
+      );
+
+      // Send confirmation reply
+      const replyMessage = result.alreadyOnWaitlist
+        ? `@${username} You're already on the waitlist! We'll DM you when private beta is available. 🚀`
+        : `@${username} ✅ You're now on the waitlist! We'll DM you when private beta is available. 🚀`;
+
+      try {
+        await this.replyToTweet(tweetId, replyMessage);
+        logger.info({ userId, username }, "✅ Waitlist confirmation reply sent");
+      } catch (replyError) {
+        logger.debug({ replyError }, "Waitlist reply failed (not critical)");
+        
+        // Send DM as fallback
+        try {
+          await this.sendDM(userId, replyMessage.replace(`@${username} `, ''));
+          logger.info({ userId, username }, "✅ Waitlist confirmation sent via DM");
+        } catch (dmError) {
+          logger.error({ dmError, userId }, "Failed to send waitlist confirmation DM");
+        }
+      }
+
+      logger.info({ userId, username, alreadyOnWaitlist: result.alreadyOnWaitlist }, "✅ Waitlist signup completed");
+
+    } catch (error) {
+      logger.error({ error, userId, username }, "Error handling waitlist signup");
+      
+      // Mark as error
+      await this.mentionTracker.markAsProcessed(
+        tweetId,
+        userId,
+        username,
+        'waitlist_error',
+        tweetText
+      );
     }
   }
 
