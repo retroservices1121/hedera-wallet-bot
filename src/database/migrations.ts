@@ -172,6 +172,32 @@ export async function runMigrations(): Promise<void> {
       WHERE processed_at > NOW() - INTERVAL '30 days'
       GROUP BY DATE(processed_at), action_taken
       ORDER BY date DESC, action_taken;
+
+      -- Waitlist table (NEW!)
+      CREATE TABLE IF NOT EXISTS waitlist (
+        id SERIAL PRIMARY KEY,
+        twitter_user_id VARCHAR(50) NOT NULL UNIQUE,
+        twitter_username VARCHAR(255) NOT NULL,
+        twitter_handle VARCHAR(255),
+        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        notified BOOLEAN DEFAULT FALSE,
+        notified_at TIMESTAMP,
+        source_tweet_id VARCHAR(50)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_waitlist_twitter_user_id ON waitlist(twitter_user_id);
+      CREATE INDEX IF NOT EXISTS idx_waitlist_joined_at ON waitlist(joined_at);
+      CREATE INDEX IF NOT EXISTS idx_waitlist_notified ON waitlist(notified);
+
+      -- Waitlist statistics view
+      CREATE OR REPLACE VIEW waitlist_stats AS
+      SELECT 
+        COUNT(*) as total_signups,
+        COUNT(CASE WHEN notified = true THEN 1 END) as notified_count,
+        COUNT(CASE WHEN notified = false THEN 1 END) as pending_count,
+        MIN(joined_at) as first_signup,
+        MAX(joined_at) as latest_signup
+      FROM waitlist;
     `);
 
     logger.info("Database migrations completed successfully");
